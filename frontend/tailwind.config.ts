@@ -51,12 +51,16 @@ const config: Config = {
           foreground: "hsl(var(--card-foreground))",
         },
         lens: {
+          // Brand primaries
           purple: "#7C3AED",
           "purple-light": "#A78BFA",
           blue: "#3B82F6",
           "blue-light": "#93C5FD",
           teal: "#14B8A6",
           "teal-light": "#5EEAD4",
+          // Alias used by components (maps to purple-light)
+          primary: "#A78BFA",
+          // Glass surfaces
           glass: "rgba(255,255,255,0.05)",
           "glass-border": "rgba(255,255,255,0.10)",
         },
@@ -80,8 +84,13 @@ const config: Config = {
           to: { height: "0" },
         },
         shimmer: {
+          // Legacy: opacity pulse (kept for bg-* classes that override background)
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.4" },
+        },
+        "skeleton-shimmer": {
+          "0%":   { backgroundPosition: "100% 50%" },
+          "100%": { backgroundPosition: "0%   50%" },
         },
         "gradient-shift": {
           "0%": { backgroundPosition: "0% 50%" },
@@ -97,6 +106,7 @@ const config: Config = {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         shimmer: "shimmer 2s ease-in-out infinite",
+        "skeleton-shimmer": "skeleton-shimmer 1.6s ease-in-out infinite",
         "gradient-shift": "gradient-shift 6s ease infinite",
         float: "float 4s ease-in-out infinite",
       },

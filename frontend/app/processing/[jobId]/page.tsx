@@ -7,28 +7,25 @@ import { useProcessingJob } from "@/lib/hooks/useLectures";
 import { AgentProcessingTimeline } from "@/components/processing/AgentProcessingTimeline";
 import { TranscriptStatusCard } from "@/components/processing/TranscriptStatusCard";
 import { ErrorStateCard } from "@/components/shared/ErrorStateCard";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 // Skeleton row for the timeline while loading
 function TimelineSkeleton() {
+  const widths = [45, 52, 42, 55, 38];
+  const subWidths = [65, 72, 60, 75, 55];
   return (
-    <div className="flex flex-col gap-0">
-      {[...Array(5)].map((_, i) => (
+    <div className="flex flex-col gap-0" aria-label="Loading pipeline steps" aria-busy="true">
+      {widths.map((w, i) => (
         <div key={i} className="flex gap-4">
           <div className="flex flex-col items-center">
-            <div className="mt-3 h-5 w-5 shrink-0 rounded-full bg-white/10 animate-pulse" />
+            <Skeleton className="mt-3 h-5 w-5 shrink-0 rounded-full" />
             {i < 4 && <div className="mt-1 min-h-[1.5rem] w-0.5 flex-1 rounded-full bg-white/5" />}
           </div>
           <div className="flex-1 pb-5 flex flex-col gap-1.5 pt-2.5">
-            <div
-              className="h-3 rounded bg-white/10 animate-pulse"
-              style={{ width: `${[45, 52, 42, 55, 38][i]}%` }}
-            />
-            <div
-              className="h-2.5 rounded bg-white/5 animate-pulse"
-              style={{ width: `${[65, 72, 60, 75, 55][i]}%` }}
-            />
+            <Skeleton className="h-3 rounded" style={{ width: `${w}%` }} />
+            <Skeleton className="h-2.5 rounded" style={{ width: `${subWidths[i]}%` }} />
           </div>
         </div>
       ))}

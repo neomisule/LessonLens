@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { BookOpen, Layers, RotateCcw, Search, GitBranch, ArrowLeft } from "lucide-react";
 import { useLecture } from "@/lib/hooks/useLectures";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LearnMode } from "@/components/content/LearnMode";
 import { BreakdownMode } from "@/components/content/BreakdownMode";
 import { ReviseMode } from "@/components/revise/ReviseMode";
@@ -75,8 +76,28 @@ export default function LectureDashboardPage() {
   const { data: lecture, isLoading, error } = useLecture(lectureId);
 
   if (isLoading) return (
-    <div className="flex h-full items-center justify-center">
-      <div className="h-12 w-48 rounded-xl bg-white/5 animate-shimmer" />
+    <div className="flex h-full flex-col gap-0">
+      {/* Header skeleton */}
+      <div className="sticky top-0 z-30 border-b border-lens-glass-border glass px-6 py-3">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+          <div className="flex-1 flex flex-col gap-1.5">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-6 w-24 rounded-full" />
+        </div>
+        <div className="mt-3 flex gap-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-24 rounded-lg" />
+          ))}
+        </div>
+      </div>
+      <div className="flex-1 p-6 flex flex-col gap-3">
+        <Skeleton className="h-32 w-full rounded-xl" />
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-24 w-3/4 rounded-xl" />
+      </div>
     </div>
   );
 

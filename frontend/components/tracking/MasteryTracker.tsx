@@ -20,7 +20,12 @@ export function MasteryTracker({ lectureId, compact = false }: MasteryTrackerPro
     queryFn: () => contentApi.getMastery(lectureId),
   });
 
-  if (isLoading) return <div className="h-16 rounded-lg bg-white/5 animate-shimmer" />;
+  if (isLoading) return (
+    <div className="flex flex-col gap-2" aria-label="Loading mastery" aria-busy="true">
+      <div className="h-2 w-full rounded-full skeleton" />
+      {!compact && <div className="h-8 w-full rounded-lg skeleton" />}
+    </div>
+  );
   if (!stats) return null;
 
   return (

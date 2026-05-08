@@ -63,14 +63,10 @@ function ConceptsList({
 
 function LoadingState() {
   return (
-    <div className="flex flex-col gap-3">
-      {[...Array(3)].map((_, i) => (
-        <div
-          key={i}
-          className="h-24 rounded-xl bg-white/5 animate-shimmer"
-          style={{ animationDelay: `${i * 100}ms` }}
-        />
-      ))}
+    <div className="flex flex-col gap-3" aria-label="Loading content" aria-busy="true">
+      <div className="h-32 rounded-xl skeleton" />
+      <div className="h-24 rounded-xl skeleton" />
+      <div className="h-24 rounded-xl skeleton" />
     </div>
   );
 }

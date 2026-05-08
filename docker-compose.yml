@@ -1,6 +1,22 @@
 version: "3.9"
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  LectureLens – local development stack
+#  Usage: docker compose up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lecturelens}:${POSTGRES_PASSWORD:-lecturelens_dev}@postgres:5432/${POSTGRES_DB:-lecturelens}
+  REDIS_URL: redis://redis:6379/0
+  ENVIRONMENT: development
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+  SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod}
+  ALLOWED_ORIGINS: http://localhost:3000
+
 services:
+  # ── Database ───────────────────────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
     container_name: lecturelens_postgres
@@ -19,6 +35,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Cache / message broker ─────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: lecturelens_redis
@@ -33,16 +50,16 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── FastAPI backend ────────────────────────────────────────────────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: deps     # use deps stage in dev (has build tools for hot-reload)
     container_name: lecturelens_backend
     restart: unless-stopped
-    env_file: .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lecturelens}:${POSTGRES_PASSWORD:-lecturelens_dev}@postgres:5432/${POSTGRES_DB:-lecturelens}
-      REDIS_URL: redis://redis:6379/0
+      <<: *backend-env
     ports:
       - "8000:8000"
     depends_on:
@@ -52,15 +69,36 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+    # Dev: hot-reload with single worker
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+  # ── Celery worker ──────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: deps
+    container_name: lecturelens_worker
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.jobs.celery_app worker --loglevel=info --concurrency=2
+
+  # ── Next.js frontend ───────────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: deps     # dev: mount source, don't pre-build
     container_name: lecturelens_frontend
     restart: unless-stopped
-    env_file: .env
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
@@ -71,6 +109,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
+    command: npm run dev
 
 volumes:
   postgres_data:

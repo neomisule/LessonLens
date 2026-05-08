@@ -1,0 +1,17 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "backend/Dockerfile"
+
+[deploy]
+startCommand = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "lecturelens-backend"
+
+[[services]]
+name = "lecturelens-worker"
+startCommand = "celery -A app.jobs.celery_app worker --loglevel=info --concurrency=2"

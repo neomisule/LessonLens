@@ -19,13 +19,9 @@ const TABS: { id: BreakdownTab; label: string; icon: React.ElementType }[] = [
 
 function LoadingState() {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" aria-label="Loading breakdown" aria-busy="true">
       {[...Array(4)].map((_, i) => (
-        <div
-          key={i}
-          className="h-20 rounded-xl bg-white/5 animate-shimmer"
-          style={{ animationDelay: `${i * 80}ms` }}
-        />
+        <div key={i} className="h-20 rounded-xl skeleton" />
       ))}
     </div>
   );
