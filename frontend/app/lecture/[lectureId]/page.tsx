@@ -5,21 +5,18 @@ import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { BookOpen, Layers, RotateCcw, Search, GitBranch, ArrowLeft } from "lucide-react";
 import { useLecture } from "@/lib/hooks/useLectures";
-import { useQuery } from "@tanstack/react-query";
-import { contentApi } from "@/lib/api/content";
 import { LearnMode } from "@/components/content/LearnMode";
 import { BreakdownMode } from "@/components/content/BreakdownMode";
 import { ReviseMode } from "@/components/revise/ReviseMode";
-import { FlashcardDeck } from "@/components/content/FlashcardDeck";
 import { MasteryTracker } from "@/components/tracking/MasteryTracker";
 import { SubjectMindMap } from "@/components/mindmap/SubjectMindMap";
+import { SearchResults } from "@/components/search/SearchResults";
 import { ErrorStateCard } from "@/components/shared/ErrorStateCard";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
+import { useSemanticSearch } from "@/lib/hooks/useSearch";
 import type { LectureMode } from "@/lib/types/lectures";
-import type { SearchQuery } from "@/lib/types/content";
 import Link from "next/link";
 
 const MODES: { id: LectureMode; label: string; icon: React.ElementType }[] = [
@@ -31,50 +28,42 @@ const MODES: { id: LectureMode; label: string; icon: React.ElementType }[] = [
 ];
 
 function SearchMode({ lectureId }: { lectureId: string }) {
-  const [query,     setQuery]     = useState("");
-  const [submitted, setSubmitted] = useState("");
+  const [query, setQuery] = useState("");
+  const { search, data, isPending, lastQuery } = useSemanticSearch();
 
-  const { data: results, isLoading } = useQuery({
-    queryKey: ["search", lectureId, submitted],
-    queryFn: () =>
-      contentApi.search({ query: submitted, lecture_id: lectureId, limit: 10 } as SearchQuery),
-    enabled: Boolean(submitted),
-  });
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    search({
+      query: query.trim(),
+      lecture_id: lectureId,
+      limit: 10,
+      include_concepts: true,
+    });
+  };
 
   return (
     <div className="flex flex-col gap-4">
-      <form
-        onSubmit={(e) => { e.preventDefault(); setSubmitted(query); }}
-        className="flex gap-2"
-      >
+      <form onSubmit={handleSubmit} className="flex gap-2">
         <Input
           placeholder="Ask anything about this lecture…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <Button type="submit" disabled={!query || isLoading}>
+        <Button type="submit" disabled={!query.trim() || isPending}>
           <Search className="h-4 w-4" />
         </Button>
       </form>
 
-      {isLoading && <div className="h-32 rounded-xl bg-white/5 animate-shimmer" />}
+      {isPending && (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-24 rounded-xl bg-white/5 animate-shimmer" />
+          ))}
+        </div>
+      )}
 
-      {results?.map((r, i) => (
-        <motion.div
-          key={r.segment_id}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.04 }}
-          className="glass-card p-4"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <Badge variant="outline" className="text-[10px]">
-              {Math.round(r.similarity * 100)}% match
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground leading-relaxed">{r.content}</p>
-        </motion.div>
-      ))}
+      {data && !isPending && <SearchResults response={data} />}
     </div>
   );
 }
@@ -150,7 +139,12 @@ export default function LectureDashboardPage() {
             {mode === "break_it_down" && <BreakdownMode lectureId={lectureId} />}
             {mode === "revise" && <ReviseMode lectureId={lectureId} />}
             {mode === "search"   && <SearchMode lectureId={lectureId} />}
-            {mode === "mind_map" && <SubjectMindMap lectureId={lectureId} />}
+            {mode === "mind_map" && (
+              <SubjectMindMap
+                lectureId={lectureId}
+                subjectId={lecture.subject_id ?? undefined}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
       </div>

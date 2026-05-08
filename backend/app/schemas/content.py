@@ -192,19 +192,6 @@ class MindMapRead(BaseModel):
     edges: list[MindMapEdgeRead]
 
 
-# ── Search ────────────────────────────────────────────────────────────────────
+# ── Search (re-exported from app.schemas.search for backwards compatibility) ──
 
-class SearchQuerySchema(BaseModel):
-    query: str = Field(..., min_length=1, max_length=500)
-    lecture_id: str | None = None
-    subject_id: str | None = None
-    limit: int = Field(default=10, ge=1, le=50)
-
-
-class SearchResultRead(BaseModel):
-    segment_id: str
-    lecture_id: str
-    content: str
-    similarity: float
-    timestamp_start: float | None = None
-    timestamp_end: float | None = None
+from app.schemas.search import SearchQuerySchema, SearchResultRead  # noqa: F401, E402

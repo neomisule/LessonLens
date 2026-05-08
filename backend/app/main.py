@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import engine, Base
 from app.routers import subjects, lectures, processing, content
-from app.routers import breakdown, revise
+from app.routers import breakdown, revise, search
 
 settings = get_settings()
 
@@ -46,6 +46,7 @@ app.include_router(processing.router, prefix=API_PREFIX)
 app.include_router(content.router, prefix=API_PREFIX)
 app.include_router(breakdown.router, prefix=API_PREFIX)
 app.include_router(revise.router, prefix=API_PREFIX)
+app.include_router(search.router, prefix=API_PREFIX)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

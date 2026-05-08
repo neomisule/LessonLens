@@ -12,11 +12,10 @@ from app.schemas.content import (
     QuizQuestionRead,
     MasteryStatsRead,
     MindMapRead,
-    SearchQuerySchema,
-    SearchResultRead,
 )
+from app.schemas.search import SearchQuerySchema, CombinedSearchResponse
 import app.services.content_service as svc
-from app.vector import search as vector_search
+import app.services.search_service as search_svc
 
 router = APIRouter(prefix="/content", tags=["content"])
 
@@ -111,6 +110,7 @@ async def get_mindmap(lecture_id: str, db: AsyncSession = Depends(get_db)):
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
-@router.post("/search/", response_model=list[SearchResultRead])
+@router.post("/search/", response_model=CombinedSearchResponse)
 async def search(payload: SearchQuerySchema, db: AsyncSession = Depends(get_db)):
-    return await vector_search.search(db, payload)
+    """Semantic search — delegates to the /api/v1/search/ router for full features."""
+    return await search_svc.semantic_search(db, payload)

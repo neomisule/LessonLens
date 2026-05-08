@@ -13,6 +13,7 @@ from .audio import GeneratedAudio
 from .processing import ProcessingJob
 from .explanation_cache import ExplanationCache
 from .revision_plan import RevisionPlan
+from .subject_graph import SubjectConcept, SubjectConceptLink
 
 __all__ = [
     "Subject", "Lecture",
@@ -22,4 +23,5 @@ __all__ = [
     "MindMapNode", "MindMapEdge", "GeneratedAudio", "ProcessingJob",
     "ExplanationCache",
     "RevisionPlan",
+    "SubjectConcept", "SubjectConceptLink",
 ]
