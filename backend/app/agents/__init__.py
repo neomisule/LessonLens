@@ -1,5 +1,7 @@
 from app.agents.base import BaseAgent
 from app.agents.ingestion_agent import IngestionAgent
+from app.agents.confusion_rescue_agent import ConfusionRescueAgent
+from app.agents.voice_agent import VoiceAgent
 from app.agents.transcript_agent import TranscriptAgent
 from app.agents.segmentation_agent import SegmentationAgent
 from app.agents.concept_agent import ConceptAgent
@@ -13,6 +15,8 @@ from app.agents.mindmap_agent import MindMapAgent
 __all__ = [
     "BaseAgent",
     "IngestionAgent",
+    "ConfusionRescueAgent",
+    "VoiceAgent",
     "TranscriptAgent",
     "SegmentationAgent",
     "ConceptAgent",

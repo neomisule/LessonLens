@@ -14,10 +14,19 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+    elevenlabs_api_key: str = ""
+
+    # Directory where generated audio files are stored
+    audio_storage_path: str = "/tmp/lecturelens_audio"
 
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    # Alias so main.py can reference settings.CORS_ORIGINS
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        return self.backend_cors_origins
 
 
 @lru_cache

@@ -11,6 +11,7 @@ from .mastery import UserMastery
 from .mindmap import MindMapNode, MindMapEdge
 from .audio import GeneratedAudio
 from .processing import ProcessingJob
+from .explanation_cache import ExplanationCache
 
 __all__ = [
     "Subject", "Lecture",
@@ -18,4 +19,5 @@ __all__ = [
     "Concept", "Chapter",
     "Flashcard", "Summary", "QuizQuestion", "UserMastery",
     "MindMapNode", "MindMapEdge", "GeneratedAudio", "ProcessingJob",
+    "ExplanationCache",
 ]
