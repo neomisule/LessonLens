@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 
@@ -5,9 +6,10 @@ from pydantic import BaseModel, Field
 
 class SummarySectionRead(BaseModel):
     heading: str
-    body: str
-    timestamp_start: float | None
-    timestamp_end: float | None
+    content: str
+    timestamp_start: float | None = None
+    timestamp_end: float | None = None
+    key_points: list[str] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
@@ -15,9 +17,50 @@ class SummarySectionRead(BaseModel):
 class SummaryRead(BaseModel):
     id: str
     lecture_id: str
-    summary_type: str
+    level: str                          # "brief" | "standard" | "detailed"
+    title: str
     content: str
-    sections: list | None
+    sections: list[SummarySectionRead] = Field(default_factory=list)
+    created_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_orm_sections(cls, obj) -> "SummaryRead":
+        """Convert DB Summary, parsing sections JSON list into SummarySectionRead."""
+        raw_sections = obj.sections or []
+        sections = []
+        for s in raw_sections:
+            if isinstance(s, dict):
+                sections.append(SummarySectionRead(
+                    heading=s.get("heading", ""),
+                    content=s.get("content", ""),
+                    timestamp_start=s.get("timestamp_start"),
+                    timestamp_end=s.get("timestamp_end"),
+                    key_points=s.get("key_points") or [],
+                ))
+        return cls(
+            id=obj.id,
+            lecture_id=obj.lecture_id,
+            level=obj.level,
+            title=obj.title,
+            content=obj.content,
+            sections=sections,
+            created_at=getattr(obj, "created_at", None),
+        )
+
+
+# ── Chapters ──────────────────────────────────────────────────────────────────
+
+class ChapterRead(BaseModel):
+    id: str
+    lecture_id: str
+    sequence_index: int
+    title: str
+    summary: str | None = None
+    timestamp_start: float
+    timestamp_end: float | None = None
+    concept_names: list[str] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
@@ -27,15 +70,33 @@ class SummaryRead(BaseModel):
 class ConceptRead(BaseModel):
     id: str
     lecture_id: str
-    title: str
-    definition: str | None
-    explanation: str | None
-    examples: list | None
+    name: str
+    definition: str | None = None
+    explanation: str | None = None
+    examples: list | None = None
     importance: str
-    timestamp_start: float | None
-    timestamp_end: float | None
+    tags: list | None = None
+    timestamp_start: float | None = None
+    timestamp_end: float | None = None
+
+    # Learn Mode enrichment fields
+    exam_likelihood: float = 0.5
+    time_spent_seconds: float | None = None
+    why_it_matters: str | None = None
+    prerequisites: list[str] = Field(default_factory=list)
+    related_concepts: list[str] = Field(default_factory=list)
+    evidence_timestamps: list[dict] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+# ── Learn Mode aggregate ──────────────────────────────────────────────────────
+
+class LearnModeRead(BaseModel):
+    """Single response object for the /learn endpoint."""
+    summaries: list[SummaryRead] = Field(default_factory=list)
+    chapters: list[ChapterRead] = Field(default_factory=list)
+    concepts: list[ConceptRead] = Field(default_factory=list)
 
 
 # ── Flashcards ────────────────────────────────────────────────────────────────
@@ -43,11 +104,11 @@ class ConceptRead(BaseModel):
 class FlashcardRead(BaseModel):
     id: str
     lecture_id: str
-    concept_id: str | None
+    concept_id: str | None = None
     front: str
     back: str
     difficulty: str
-    tags: list | None
+    tags: list | None = None
 
     model_config = {"from_attributes": True}
 
@@ -68,7 +129,7 @@ class QuizQuestionRead(BaseModel):
     lecture_id: str
     question_text: str
     question_type: str
-    options: list | None
+    options: list | None = None
     correct_answer: str
     explanation: str
     difficulty: str
@@ -81,8 +142,8 @@ class QuizQuestionRead(BaseModel):
 class UserMasteryRead(BaseModel):
     id: str
     lecture_id: str
-    concept_id: str | None
-    flashcard_id: str | None
+    concept_id: str | None = None
+    flashcard_id: str | None = None
     mastery_level: str
     attempts: int
     correct_count: int
@@ -104,13 +165,13 @@ class MasteryStatsRead(BaseModel):
 class MindMapNodeRead(BaseModel):
     id: str
     lecture_id: str
-    concept_id: str | None
+    concept_id: str | None = None
     label: str
-    description: str | None
+    description: str | None = None
     node_type: str
     position_x: float
     position_y: float
-    color: str | None
+    color: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -120,7 +181,7 @@ class MindMapEdgeRead(BaseModel):
     lecture_id: str
     source_node_id: str
     target_node_id: str
-    label: str | None
+    label: str | None = None
     edge_type: str
 
     model_config = {"from_attributes": True}
@@ -145,5 +206,5 @@ class SearchResultRead(BaseModel):
     lecture_id: str
     content: str
     similarity: float
-    timestamp_start: float | None
-    timestamp_end: float | None
+    timestamp_start: float | None = None
+    timestamp_end: float | None = None

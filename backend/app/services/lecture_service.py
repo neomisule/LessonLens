@@ -39,7 +39,7 @@ async def add_lecture(db: AsyncSession, payload: LectureCreate) -> Lecture:
     lecture = Lecture(
         subject_id=payload.subject_id,
         youtube_url=payload.youtube_url,
-        youtube_video_id=video_id,
+        youtube_id=video_id or "",           # model field is youtube_id
         title=payload.title or f"Lecture – {video_id or 'unknown'}",
         thumbnail_url=thumbnail,
         processing_status="pending",
@@ -61,9 +61,9 @@ async def start_processing(db: AsyncSession, lecture: Lecture) -> ProcessingJob:
     await db.commit()
     await db.refresh(job)
 
-    # TODO: enqueue Celery task
-    # from app.jobs.tasks import process_lecture
-    # process_lecture.delay(lecture.id, job.id)
+    # Enqueue Celery task
+    from app.jobs.tasks import process_lecture  # local import avoids circular import at startup
+    process_lecture.delay(lecture.id, job.id)
 
     return job
 

@@ -15,6 +15,7 @@ class ProcessingJob(Base):
     steps_completed: Mapped[list] = mapped_column(JSON, default=list)
     steps_total: Mapped[int] = mapped_column(Integer, default=7)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    progress_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), server_default=func.now())

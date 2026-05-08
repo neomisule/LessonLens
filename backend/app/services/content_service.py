@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.summary import Summary
 from app.models.concept import Concept
+from app.models.chapter import Chapter
 from app.models.flashcard import Flashcard
 from app.models.quiz import QuizQuestion
 from app.models.mastery import UserMastery
@@ -13,29 +14,77 @@ from app.schemas.content import (
     MindMapNodeRead,
     MindMapEdgeRead,
     FlashcardSessionSubmit,
+    ChapterRead,
+    ConceptRead,
+    SummaryRead,
+    LearnModeRead,
 )
 
 
+# ── Summary ───────────────────────────────────────────────────────────────────
+
 async def get_summary(
-    db: AsyncSession, lecture_id: str, summary_type: str = "standard"
+    db: AsyncSession, lecture_id: str, level: str = "standard"
 ) -> Summary | None:
     result = await db.execute(
         select(Summary).where(
             Summary.lecture_id == lecture_id,
-            Summary.summary_type == summary_type,
+            Summary.level == level,
         )
     )
     return result.scalar_one_or_none()
 
 
+async def get_all_summaries(db: AsyncSession, lecture_id: str) -> list[Summary]:
+    result = await db.execute(
+        select(Summary)
+        .where(Summary.lecture_id == lecture_id)
+        .order_by(Summary.level)
+    )
+    return list(result.scalars().all())
+
+
+# ── Chapters ──────────────────────────────────────────────────────────────────
+
+async def get_chapters(db: AsyncSession, lecture_id: str) -> list[Chapter]:
+    result = await db.execute(
+        select(Chapter)
+        .where(Chapter.lecture_id == lecture_id)
+        .order_by(Chapter.sequence_index)
+    )
+    return list(result.scalars().all())
+
+
+# ── Concepts ──────────────────────────────────────────────────────────────────
+
 async def get_concepts(db: AsyncSession, lecture_id: str) -> list[Concept]:
     result = await db.execute(
         select(Concept)
         .where(Concept.lecture_id == lecture_id)
-        .order_by(Concept.importance.desc())
+        .order_by(Concept.exam_likelihood.desc(), Concept.timestamp_start)
     )
     return list(result.scalars().all())
 
+
+# ── Learn Mode aggregate ──────────────────────────────────────────────────────
+
+async def get_learn_mode(db: AsyncSession, lecture_id: str) -> LearnModeRead:
+    """
+    Return all Learn Mode data for a lecture in a single aggregated response.
+    Includes summaries (all levels), chapters, and enriched concepts.
+    """
+    summaries_orm = await get_all_summaries(db, lecture_id)
+    chapters_orm = await get_chapters(db, lecture_id)
+    concepts_orm = await get_concepts(db, lecture_id)
+
+    return LearnModeRead(
+        summaries=[SummaryRead.from_orm_sections(s) for s in summaries_orm],
+        chapters=[ChapterRead.model_validate(ch) for ch in chapters_orm],
+        concepts=[ConceptRead.model_validate(c) for c in concepts_orm],
+    )
+
+
+# ── Flashcards ────────────────────────────────────────────────────────────────
 
 async def get_flashcards(db: AsyncSession, lecture_id: str) -> list[Flashcard]:
     result = await db.execute(
@@ -87,12 +136,16 @@ async def submit_flashcard_session(
     return {"updated": updated}
 
 
+# ── Quiz ──────────────────────────────────────────────────────────────────────
+
 async def get_quiz_questions(db: AsyncSession, lecture_id: str) -> list[QuizQuestion]:
     result = await db.execute(
         select(QuizQuestion).where(QuizQuestion.lecture_id == lecture_id)
     )
     return list(result.scalars().all())
 
+
+# ── Mastery ───────────────────────────────────────────────────────────────────
 
 async def get_mastery_stats(db: AsyncSession, lecture_id: str) -> MasteryStatsRead:
     result = await db.execute(
@@ -117,6 +170,8 @@ async def get_mastery_stats(db: AsyncSession, lecture_id: str) -> MasteryStatsRe
         mastery_percentage=mastery_pct,
     )
 
+
+# ── Mind Map ──────────────────────────────────────────────────────────────────
 
 async def get_mindmap(db: AsyncSession, lecture_id: str) -> MindMapRead:
     nodes_result = await db.execute(

@@ -16,6 +16,9 @@ class TranscriptSegment(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     timestamp_start: Mapped[float] = mapped_column(Float, nullable=False)
     timestamp_end: Mapped[float] = mapped_column(Float, nullable=False)
+    # Ingestion metadata
+    source: Mapped[str] = mapped_column(String(30), default="youtube_captions", nullable=False)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     lecture: Mapped["Lecture"] = relationship("Lecture", back_populates="transcript_segments")  # type: ignore[name-defined]  # noqa: F821
 
@@ -30,5 +33,9 @@ class SemanticSegment(Base):
     timestamp_start: Mapped[float] = mapped_column(Float, nullable=False)
     timestamp_end: Mapped[float] = mapped_column(Float, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
+    # Segmentation metadata
+    token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    topic_label: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    topic_boundary_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     lecture: Mapped["Lecture"] = relationship("Lecture", back_populates="semantic_segments")  # type: ignore[name-defined]  # noqa: F821

@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 
 class LectureCreate(BaseModel):
@@ -17,11 +17,15 @@ class LectureRead(BaseModel):
     id: str
     subject_id: str
     youtube_url: str
-    youtube_video_id: str | None
+    youtube_id: str                  # matches Lecture.youtube_id
     title: str | None
+    description: str | None = None
     duration_seconds: int | None
     thumbnail_url: str | None
+    channel_name: str | None = None
     processing_status: str
+    processing_error: str | None = None
     created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}

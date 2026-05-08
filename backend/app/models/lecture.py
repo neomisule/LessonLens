@@ -34,3 +34,5 @@ class Lecture(Base):
     mindmap_nodes: Mapped[list["MindMapNode"]] = relationship("MindMapNode", back_populates="lecture", cascade="all, delete-orphan")  # type: ignore[name-defined]  # noqa: F821
     mindmap_edges: Mapped[list["MindMapEdge"]] = relationship("MindMapEdge", back_populates="lecture", cascade="all, delete-orphan")  # type: ignore[name-defined]  # noqa: F821
     processing_jobs: Mapped[list["ProcessingJob"]] = relationship("ProcessingJob", back_populates="lecture", cascade="all, delete-orphan")  # type: ignore[name-defined]  # noqa: F821
+    transcript_quality: Mapped["TranscriptQuality | None"] = relationship("TranscriptQuality", back_populates="lecture", uselist=False, cascade="all, delete-orphan")  # type: ignore[name-defined]  # noqa: F821
+    chapters: Mapped[list["Chapter"]] = relationship("Chapter", back_populates="lecture", cascade="all, delete-orphan", order_by="Chapter.sequence_index")  # type: ignore[name-defined]  # noqa: F821

@@ -7,7 +7,7 @@ import { BookOpen, Layers, RotateCcw, Search, GitBranch, ArrowLeft } from "lucid
 import { useLecture } from "@/lib/hooks/useLectures";
 import { useQuery } from "@tanstack/react-query";
 import { contentApi } from "@/lib/api/content";
-import { SummarySelector } from "@/components/content/SummarySelector";
+import { LearnMode } from "@/components/content/LearnMode";
 import { KeyConceptCard } from "@/components/content/KeyConceptCard";
 import { FlashcardDeck } from "@/components/content/FlashcardDeck";
 import { MasteryTracker } from "@/components/tracking/MasteryTracker";
@@ -67,6 +67,7 @@ export default function LectureDashboardPage() {
     queryKey: ["concepts", lectureId],
     queryFn: () => contentApi.getConcepts(lectureId),
     enabled: mode === "break_it_down" && Boolean(lectureId),
+    staleTime: 5 * 60 * 1000,
   });
 
   if (isLoading) return (
@@ -108,7 +109,7 @@ export default function LectureDashboardPage() {
       <div className="flex-1 overflow-y-auto p-6">
         <AnimatePresence mode="wait">
           <motion.div key={mode} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-            {mode === "learn" && <SummarySelector lectureId={lectureId} />}
+            {mode === "learn" && <LearnMode lectureId={lectureId} />}
             {mode === "break_it_down" && (
               <div className="flex flex-col gap-3">
                 {concepts.length === 0

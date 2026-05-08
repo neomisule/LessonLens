@@ -2,6 +2,14 @@
 
 export type SummaryLevel = "brief" | "standard" | "detailed";
 
+export interface SummarySection {
+  heading: string;
+  content: string;
+  timestamp_start: number | null;
+  timestamp_end: number | null;
+  key_points: string[];
+}
+
 export interface Summary {
   id: string;
   lecture_id: string;
@@ -9,14 +17,20 @@ export interface Summary {
   title: string;
   content: string;
   sections: SummarySection[];
-  created_at: string;
+  created_at: string | null;
 }
 
-export interface SummarySection {
-  heading: string;
-  content: string;
-  timestamp_start: number | null;
+// ─── Chapters ─────────────────────────────────────────────────────────────────
+
+export interface Chapter {
+  id: string;
+  lecture_id: string;
+  sequence_index: number;
+  title: string;
+  summary: string | null;
+  timestamp_start: number;
   timestamp_end: number | null;
+  concept_names: string[];
 }
 
 // ─── Concepts ─────────────────────────────────────────────────────────────────
@@ -29,8 +43,25 @@ export interface Concept {
   explanation: string;
   examples: string[];
   timestamp_start: number | null;
+  timestamp_end: number | null;
   importance: "core" | "supporting" | "supplemental";
   tags: string[];
+
+  // Learn Mode enrichment
+  exam_likelihood: number;            // 0–1
+  time_spent_seconds: number | null;  // seconds of lecture time on this concept
+  why_it_matters: string | null;
+  prerequisites: string[];            // concept names
+  related_concepts: string[];         // concept names
+  evidence_timestamps: { ts: number; quote: string }[];
+}
+
+// ─── Learn Mode aggregate ─────────────────────────────────────────────────────
+
+export interface LearnModeData {
+  summaries: Summary[];
+  chapters: Chapter[];
+  concepts: Concept[];
 }
 
 // ─── Flashcards ───────────────────────────────────────────────────────────────
