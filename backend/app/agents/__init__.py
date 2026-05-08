@@ -8,6 +8,7 @@ from app.agents.concept_agent import ConceptAgent
 from app.agents.concept_mapper_agent import ConceptMapperAgent
 from app.agents.grounding_agent import GroundingAgent
 from app.agents.student_tutor_agent import StudentTutorAgent
+from app.agents.exam_coach_agent import ExamCoachAgent
 from app.agents.flashcard_agent import FlashcardAgent
 from app.agents.summary_agent import SummaryAgent
 from app.agents.mindmap_agent import MindMapAgent
@@ -23,6 +24,7 @@ __all__ = [
     "ConceptMapperAgent",
     "GroundingAgent",
     "StudentTutorAgent",
+    "ExamCoachAgent",
     "FlashcardAgent",
     "SummaryAgent",
     "MindMapAgent",

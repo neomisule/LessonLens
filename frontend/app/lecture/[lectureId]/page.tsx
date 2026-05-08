@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { contentApi } from "@/lib/api/content";
 import { LearnMode } from "@/components/content/LearnMode";
 import { BreakdownMode } from "@/components/content/BreakdownMode";
+import { ReviseMode } from "@/components/revise/ReviseMode";
 import { FlashcardDeck } from "@/components/content/FlashcardDeck";
 import { MasteryTracker } from "@/components/tracking/MasteryTracker";
 import { SubjectMindMap } from "@/components/mindmap/SubjectMindMap";
@@ -147,11 +148,7 @@ export default function LectureDashboardPage() {
           >
             {mode === "learn"         && <LearnMode lectureId={lectureId} />}
             {mode === "break_it_down" && <BreakdownMode lectureId={lectureId} />}
-            {mode === "revise"        && (
-              <div className="flex flex-col gap-6 max-w-xl mx-auto">
-                <FlashcardDeck lectureId={lectureId} />
-              </div>
-            )}
+            {mode === "revise" && <ReviseMode lectureId={lectureId} />}
             {mode === "search"   && <SearchMode lectureId={lectureId} />}
             {mode === "mind_map" && <SubjectMindMap lectureId={lectureId} />}
           </motion.div>
