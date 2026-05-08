@@ -1,0 +1,79 @@
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronDown, Lightbulb, Star } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { TimestampButton } from "@/components/lectures/TimestampButton";
+import { cn } from "@/lib/utils/cn";
+import type { Concept } from "@/lib/types/content";
+
+const IMPORTANCE_CONFIG = {
+  core: { label: "Core", variant: "default" as const, icon: Star },
+  supporting: { label: "Supporting", variant: "secondary" as const, icon: Lightbulb },
+  supplemental: { label: "Supplemental", variant: "outline" as const, icon: Lightbulb },
+};
+
+interface KeyConceptCardProps {
+  concept: Concept;
+  lectureId: string;
+}
+
+export function KeyConceptCard({ concept, lectureId }: KeyConceptCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const config = IMPORTANCE_CONFIG[concept.importance];
+
+  return (
+    <motion.div layout className="glass-card overflow-hidden" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+      <button onClick={() => setExpanded((v) => !v)} className="flex w-full items-start gap-3 p-4 text-left">
+        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-lens-purple/15 text-lens-purple-light">
+          <config.icon className="h-3.5 w-3.5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="text-sm font-semibold text-foreground">{concept.name}</span>
+            <Badge variant={config.variant} className="text-[10px]">{config.label}</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground line-clamp-2">{concept.definition}</p>
+        </div>
+        <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 pt-0 flex flex-col gap-3 border-t border-lens-glass-border">
+              <p className="text-sm text-muted-foreground leading-relaxed pt-3">{concept.explanation}</p>
+              {concept.examples.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-foreground mb-1.5">Examples</p>
+                  <ul className="flex flex-col gap-1">
+                    {concept.examples.map((ex, i) => (
+                      <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                        <span className="text-lens-teal-light shrink-0">•</span>{ex}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {concept.timestamp_start != null && (
+                  <TimestampButton seconds={concept.timestamp_start} lectureId={lectureId} />
+                )}
+                {concept.tags.map((tag) => (
+                  <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
