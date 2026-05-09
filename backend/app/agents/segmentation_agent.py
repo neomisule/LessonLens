@@ -3,7 +3,7 @@
 Responsibilities:
   1. Read TranscriptSegment dicts from pipeline state
   2. Group into 15-second TranscriptChunks
-  3. Generate embeddings for each chunk (batch call to OpenAI)
+  3. Generate embeddings for each chunk (batch call to Anthropic or OpenAI)
   4. Detect topic boundaries via cosine similarity
   5. Persist SemanticSegment rows with embeddings to the DB
   6. Mark "segmenting" step complete
@@ -17,7 +17,7 @@ from typing import Any
 from app.agents.base import BaseAgent
 from app.config import get_settings
 from app.database import async_session_factory
-from app.models.transcript import NormalizedSegment as ORMSegment, SemanticSegment
+from app.models.transcript import SemanticSegment
 from app.transcript.schemas import NormalizedSegment, TranscriptChunk
 from app.transcript.chunker import chunk_into_windows
 from app.transcript.segmenter import (
@@ -77,7 +77,7 @@ class SegmentationAgent(BaseAgent):
 
         # ── 3. Generate embeddings (batch) ────────────────────────────────────
         embeddings: list[list[float]] | None = None
-        if self._settings.openai_api_key:
+        if self._settings.openai_api_key or self._settings.anthropic_api_key:
             try:
                 from app.vector.store import create_embeddings_batch
                 chunk_texts = [c.text for c in chunks]
@@ -87,7 +87,7 @@ class SegmentationAgent(BaseAgent):
                 logger.warning("[segmentation] Embedding failed, using fixed segmentation: %s", exc)
                 embeddings = None
         else:
-            logger.info("[segmentation] No OpenAI key; using fixed-window segmentation")
+            logger.info("[segmentation] No embedding API key configured; using fixed-window segmentation")
 
         # ── 4. Topic boundary detection ───────────────────────────────────────
         if embeddings and len(embeddings) == len(chunks):

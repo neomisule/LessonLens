@@ -30,8 +30,8 @@ Paste any YouTube lecture URL → LectureLens runs a multi-agent pipeline to pro
 | Database | PostgreSQL 16 + pgvector (1536-dim embeddings) |
 | Cache / Queue | Redis 7 + Celery |
 | AI Orchestration | LangGraph (8-node DAG) |
-| LLMs | Anthropic Claude (primary) + OpenAI GPT-4o-mini (fallback) |
-| Embeddings | OpenAI text-embedding-3-small |
+| LLMs | Anthropic Claude (primary) + OpenAI GPT-4o-mini (optional fallback) |
+| Embeddings | Anthropic Claude embeddings or OpenAI text-embedding-3-small |
 | TTS | ElevenLabs (optional) |
 
 ---
@@ -45,7 +45,7 @@ cd lecturelens
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env — fill in ANTHROPIC_API_KEY and OPENAI_API_KEY at minimum
+# Edit .env — fill in ANTHROPIC_API_KEY; OPENAI_API_KEY is optional
 
 # 3. Start all services
 docker compose up -d
@@ -174,7 +174,7 @@ The `vercel.json` in `frontend/` already configures:
 
 1. Push your code to GitHub.
 2. Create a new Render Blueprint using `render.yaml` in the repo root.
-3. Fill in your secret env vars (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.) in the Render dashboard.
+3. Fill in your secret env vars (`ANTHROPIC_API_KEY`, and `OPENAI_API_KEY` if you want optional embeddings/fallbacks) in the Render dashboard.
 4. Deploy — Render will provision Postgres, Redis, the web service, and the Celery worker automatically.
 
 After first deploy, run migrations:
@@ -208,7 +208,6 @@ See [`.env.example`](.env.example) for a full list with descriptions.
 | Variable | Description |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API key (primary LLM) |
-| `OPENAI_API_KEY` | OpenAI key (embeddings + fallback) |
 | `DATABASE_URL` | PostgreSQL async URL |
 | `REDIS_URL` | Redis connection URL |
 
@@ -216,6 +215,7 @@ See [`.env.example`](.env.example) for a full list with descriptions.
 
 | Variable | Description |
 |---|---|
+| `OPENAI_API_KEY` | OpenAI key for optional embeddings, GPT-4o-mini fallback, and Whisper |
 | `ELEVENLABS_API_KEY` | TTS for audio explanations |
 | `AUDIO_STORAGE_PATH` | Where to cache generated MP3 files |
 

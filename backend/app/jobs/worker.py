@@ -5,8 +5,8 @@ settings = get_settings()
 
 celery_app = Celery(
     "lecturelens",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
+    broker=settings.redis_url,
+    backend=settings.redis_url,
     include=["app.jobs.tasks"],
 )
 

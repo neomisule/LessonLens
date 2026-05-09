@@ -18,6 +18,7 @@ from app.learn.llm_client import LLMClient
 from app.learn.concept_extractor import extract_concepts_from_segments
 from app.learn.schemas import ExtractedConcept
 from app.config import get_settings
+from app.vector.store import create_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +42,12 @@ async def _load_segments(db: AsyncSession, lecture_id: str) -> list[dict]:
 
 
 async def _embed_concept(name: str, settings) -> list[float] | None:
-    """Generate an embedding vector for a concept name, if API key is available."""
-    if not settings.openai_api_key:
+    """Generate an embedding vector for a concept name, if an API key is available."""
+    if not (settings.openai_api_key or settings.anthropic_api_key):
         return None
+
     try:
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=settings.openai_api_key)
-        response = await client.embeddings.create(
-            model="text-embedding-3-small",
-            input=name,
-        )
-        return response.data[0].embedding
+        return await create_embedding(name)
     except Exception as exc:
         logger.warning("[concept_agent] Embedding failed for '%s': %s", name, exc)
         return None

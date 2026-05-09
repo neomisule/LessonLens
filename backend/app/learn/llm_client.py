@@ -1,7 +1,8 @@
 """Thin async LLM wrapper for the Learn Mode pipeline.
 
-Uses Anthropic Claude by default; falls back gracefully if no key is configured.
-All methods return parsed Python dicts/lists — callers never deal with raw text.
+Uses Anthropic Claude by default; falls back to OpenAI only if Anthropic is unavailable
+or not configured. All methods return parsed Python dicts/lists — callers never
+deal with raw text.
 """
 import json
 import logging
