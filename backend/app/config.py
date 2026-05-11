@@ -18,6 +18,15 @@ class Settings(BaseSettings):
         return self.backend_cors_origins
 
     database_url: str = "postgresql+asyncpg://lecturelens:lecturelens_dev@localhost:5432/lecturelens"
+
+    @property
+    def async_database_url(self) -> str:
+        """Always returns the asyncpg variant regardless of what Railway injects."""
+        url = self.database_url
+        if url.startswith("postgresql://") or url.startswith("postgres://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return url
     redis_url: str = "redis://localhost:6379/0"
 
     anthropic_api_key: str = ""
