@@ -77,7 +77,13 @@ async def download_audio(youtube_url: str, output_dir: str) -> str:
             raise RuntimeError("yt-dlp produced no output file in " + output_dir)
         return files[0]
 
-    return await asyncio.get_event_loop().run_in_executor(None, _download)
+    try:
+        return await asyncio.wait_for(
+            asyncio.get_running_loop().run_in_executor(None, _download),
+            timeout=300,  # 5-minute hard cap — avoids infinite hang on large videos
+        )
+    except asyncio.TimeoutError:
+        raise RuntimeError(f"Audio download timed out after 5 minutes for {youtube_url}")
 
 
 async def transcribe_with_groq(audio_path: str, api_key: str) -> list[RawSegment]:

@@ -65,15 +65,14 @@ class IngestionAgent:
         InsufficientTranscriptError
             When no usable transcript could be obtained by any method.
         """
-        # ── 1. Metadata ───────────────────────────────────────────────────────
-        logger.info("[ingestion] Fetching metadata for %s", youtube_id)
-        metadata = await fetch_video_metadata(youtube_id)
-
-        # ── 2. YouTube captions ───────────────────────────────────────────────
-        logger.info("[ingestion] Fetching YouTube captions for %s", youtube_id)
-        raw_segs: list[RawSegment] | None = await asyncio.get_event_loop().run_in_executor(
-            None, fetch_captions_sync, youtube_id
+        # ── 1+2. Metadata + captions in parallel ─────────────────────────────
+        logger.info("[ingestion] Fetching metadata + captions in parallel for %s", youtube_id)
+        loop = asyncio.get_running_loop()
+        metadata, raw_segs = await asyncio.gather(
+            fetch_video_metadata(youtube_id),
+            loop.run_in_executor(None, fetch_captions_sync, youtube_id),
         )
+        raw_segs: list[RawSegment] | None = raw_segs
 
         method = "youtube_captions"
         segments: list[NormalizedSegment] = []
