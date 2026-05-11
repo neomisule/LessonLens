@@ -10,6 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from pgvector.sqlalchemy import Vector
 
 # revision identifiers, used by Alembic.
 revision: str = "0001"
@@ -95,21 +96,13 @@ def upgrade() -> None:
         sa.Column("content", sa.Text, nullable=False),
         sa.Column("timestamp_start", sa.Float, nullable=True),
         sa.Column("timestamp_end", sa.Float, nullable=True),
-        sa.Column("embedding", postgresql.ARRAY(sa.Float), nullable=True),
+        sa.Column("embedding", Vector(1536), nullable=True),
         sa.Column("token_count", sa.Integer, nullable=True),
         sa.Column("segment_index", sa.Integer, nullable=False),
     )
     op.create_index("ix_semantic_segments_lecture_id", "semantic_segments", ["lecture_id"])
 
-    # pgvector IVFFlat index for cosine similarity search
-    op.execute(
-        """
-        CREATE INDEX IF NOT EXISTS ix_semantic_segments_embedding
-        ON semantic_segments
-        USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = 100)
-        """
-    )
+    # IVFFlat index created later in 0006 after data exists
 
     # ── concepts ──────────────────────────────────────────────────────────────
     op.create_table(
@@ -134,7 +127,7 @@ def upgrade() -> None:
         sa.Column("importance", sa.String(10), nullable=False, server_default="medium"),
         sa.Column("timestamp_start", sa.Float, nullable=True),
         sa.Column("timestamp_end", sa.Float, nullable=True),
-        sa.Column("embedding", postgresql.ARRAY(sa.Float), nullable=True),
+        sa.Column("embedding", Vector(1536), nullable=True),
     )
     op.create_index("ix_concepts_lecture_id", "concepts", ["lecture_id"])
 
