@@ -34,6 +34,9 @@ COPY --from=deps /usr/local/bin /usr/local/bin
 
 COPY --chown=appuser:appgroup . .
 
+# Force Python to flush stdout/stderr immediately so Railway logs are visible
+ENV PYTHONUNBUFFERED=1
+
 USER appuser
 
 EXPOSE 8000
@@ -43,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # $PORT is injected by Railway; falls back to 8000 for local/other platforms
-CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2 --log-level info
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --log-level info
