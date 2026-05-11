@@ -12,74 +12,75 @@ down_revision = "0004"
 branch_labels = None
 depends_on = None
 
+_SAFE = "DO $$ BEGIN {sql}; EXCEPTION WHEN duplicate_column THEN NULL; END $$;"
+
+
+def _add_col(table: str, col_sql: str) -> None:
+    op.execute(_SAFE.format(sql=f"ALTER TABLE {table} ADD COLUMN {col_sql}"))
+
 
 def upgrade() -> None:
-    # ── flashcards: add Revise Mode columns ──────────────────────────────────
-    with op.batch_alter_table("flashcards") as batch_op:
-        batch_op.add_column(sa.Column("question_type", sa.String(20), nullable=False, server_default="surface"))
-        batch_op.add_column(sa.Column("timestamp_start", sa.Float(), nullable=True))
-        batch_op.add_column(sa.Column("timestamp_end", sa.Float(), nullable=True))
-        batch_op.add_column(sa.Column("time_spent_seconds", sa.Integer(), nullable=True))
-        batch_op.add_column(sa.Column("exam_likelihood", sa.Float(), nullable=False, server_default="0.5"))
-        batch_op.add_column(sa.Column("evidence_quote", sa.Text(), nullable=True))
+    # ── flashcards ────────────────────────────────────────────────────────────
+    _add_col("flashcards", "question_type VARCHAR(20) NOT NULL DEFAULT 'surface'")
+    _add_col("flashcards", "timestamp_start FLOAT")
+    _add_col("flashcards", "timestamp_end FLOAT")
+    _add_col("flashcards", "time_spent_seconds INTEGER")
+    _add_col("flashcards", "exam_likelihood FLOAT NOT NULL DEFAULT 0.5")
+    _add_col("flashcards", "evidence_quote TEXT")
 
-    # ── user_mastery: add SM-2 columns ────────────────────────────────────────
-    with op.batch_alter_table("user_mastery") as batch_op:
-        batch_op.add_column(sa.Column("confidence", sa.String(20), nullable=False, server_default="not_started"))
-        batch_op.add_column(sa.Column("ease_factor", sa.Float(), nullable=False, server_default="2.5"))
-        batch_op.add_column(sa.Column("next_review_interval_days", sa.Integer(), nullable=False, server_default="1"))
+    # ── user_mastery ──────────────────────────────────────────────────────────
+    _add_col("user_mastery", "confidence VARCHAR(20) NOT NULL DEFAULT 'not_started'")
+    _add_col("user_mastery", "ease_factor FLOAT NOT NULL DEFAULT 2.5")
+    _add_col("user_mastery", "next_review_interval_days INTEGER NOT NULL DEFAULT 1")
 
-    # ── quiz_questions: add concept_id, grounding columns ────────────────────
-    with op.batch_alter_table("quiz_questions") as batch_op:
-        batch_op.add_column(sa.Column(
-            "concept_id", sa.String(36),
-            sa.ForeignKey("concepts.id", ondelete="SET NULL"),
-            nullable=True,
-        ))
-        batch_op.add_column(sa.Column("timestamp_start", sa.Float(), nullable=True))
-        batch_op.add_column(sa.Column("evidence_quote", sa.Text(), nullable=True))
-        batch_op.create_index("ix_quiz_questions_concept_id", ["concept_id"])
+    # ── quiz_questions ────────────────────────────────────────────────────────
+    _add_col("quiz_questions", "concept_id VARCHAR(36) REFERENCES concepts(id) ON DELETE SET NULL")
+    _add_col("quiz_questions", "timestamp_start FLOAT")
+    _add_col("quiz_questions", "evidence_quote TEXT")
+    op.execute("""
+        DO $$ BEGIN
+            CREATE INDEX ix_quiz_questions_concept_id ON quiz_questions(concept_id);
+        EXCEPTION WHEN duplicate_table THEN NULL;
+        END $$;
+    """)
 
     # ── revision_plans table ──────────────────────────────────────────────────
-    op.create_table(
-        "revision_plans",
-        sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("lecture_id", sa.String(36), sa.ForeignKey("lectures.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("concept_id", sa.String(36), sa.ForeignKey("concepts.id", ondelete="CASCADE"), nullable=True),
-        sa.Column("concept_name", sa.String(255), nullable=False),
-        sa.Column("reason", sa.Text(), nullable=False),
-        sa.Column("priority", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("due_in_days", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("due_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("timestamp_start", sa.Float(), nullable=True),
-        sa.Column("exam_likelihood", sa.Float(), nullable=False, server_default="0.5"),
-        sa.Column("confidence", sa.String(20), nullable=False, server_default="not_started"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-    )
-    op.create_index("ix_revision_plans_lecture_id", "revision_plans", ["lecture_id"])
-    op.create_index("ix_revision_plans_concept_id", "revision_plans", ["concept_id"])
+    conn = op.get_bind()
+    insp = sa.inspect(conn)
+    if not insp.has_table("revision_plans"):
+        op.create_table(
+            "revision_plans",
+            sa.Column("id", sa.String(36), primary_key=True),
+            sa.Column("lecture_id", sa.String(36), sa.ForeignKey("lectures.id", ondelete="CASCADE"), nullable=False),
+            sa.Column("concept_id", sa.String(36), sa.ForeignKey("concepts.id", ondelete="CASCADE"), nullable=True),
+            sa.Column("concept_name", sa.String(255), nullable=False),
+            sa.Column("reason", sa.Text(), nullable=False),
+            sa.Column("priority", sa.Integer(), nullable=False, server_default="1"),
+            sa.Column("due_in_days", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("due_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("timestamp_start", sa.Float(), nullable=True),
+            sa.Column("exam_likelihood", sa.Float(), nullable=False, server_default="0.5"),
+            sa.Column("confidence", sa.String(20), nullable=False, server_default="not_started"),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        )
+        op.create_index("ix_revision_plans_lecture_id", "revision_plans", ["lecture_id"])
+        op.create_index("ix_revision_plans_concept_id", "revision_plans", ["concept_id"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_revision_plans_concept_id", table_name="revision_plans")
-    op.drop_index("ix_revision_plans_lecture_id", table_name="revision_plans")
-    op.drop_table("revision_plans")
-
-    with op.batch_alter_table("quiz_questions") as batch_op:
-        batch_op.drop_index("ix_quiz_questions_concept_id")
-        batch_op.drop_column("evidence_quote")
-        batch_op.drop_column("timestamp_start")
-        batch_op.drop_column("concept_id")
-
-    with op.batch_alter_table("user_mastery") as batch_op:
-        batch_op.drop_column("next_review_interval_days")
-        batch_op.drop_column("ease_factor")
-        batch_op.drop_column("confidence")
-
-    with op.batch_alter_table("flashcards") as batch_op:
-        batch_op.drop_column("evidence_quote")
-        batch_op.drop_column("exam_likelihood")
-        batch_op.drop_column("time_spent_seconds")
-        batch_op.drop_column("timestamp_end")
-        batch_op.drop_column("timestamp_start")
-        batch_op.drop_column("question_type")
+    op.execute("DROP INDEX IF EXISTS ix_revision_plans_concept_id")
+    op.execute("DROP INDEX IF EXISTS ix_revision_plans_lecture_id")
+    op.execute("DROP TABLE IF EXISTS revision_plans")
+    op.execute("DROP INDEX IF EXISTS ix_quiz_questions_concept_id")
+    op.execute("ALTER TABLE quiz_questions DROP COLUMN IF EXISTS evidence_quote")
+    op.execute("ALTER TABLE quiz_questions DROP COLUMN IF EXISTS timestamp_start")
+    op.execute("ALTER TABLE quiz_questions DROP COLUMN IF EXISTS concept_id")
+    op.execute("ALTER TABLE user_mastery DROP COLUMN IF EXISTS next_review_interval_days")
+    op.execute("ALTER TABLE user_mastery DROP COLUMN IF EXISTS ease_factor")
+    op.execute("ALTER TABLE user_mastery DROP COLUMN IF EXISTS confidence")
+    op.execute("ALTER TABLE flashcards DROP COLUMN IF EXISTS evidence_quote")
+    op.execute("ALTER TABLE flashcards DROP COLUMN IF EXISTS exam_likelihood")
+    op.execute("ALTER TABLE flashcards DROP COLUMN IF EXISTS time_spent_seconds")
+    op.execute("ALTER TABLE flashcards DROP COLUMN IF EXISTS timestamp_end")
+    op.execute("ALTER TABLE flashcards DROP COLUMN IF EXISTS timestamp_start")
+    op.execute("ALTER TABLE flashcards DROP COLUMN IF EXISTS question_type")

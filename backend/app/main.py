@@ -13,11 +13,12 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables if they don't exist (for dev; prod uses Alembic)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Dev only: create tables directly from models (fast, no migrations needed)
+    # Production: tables are managed by `alembic upgrade head` in the start command
+    if not settings.is_production:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     yield
-    # Shutdown: dispose connection pool
     await engine.dispose()
 
 

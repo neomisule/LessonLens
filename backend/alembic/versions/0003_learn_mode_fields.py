@@ -25,30 +25,22 @@ branch_labels = None
 depends_on = None
 
 
+_SAFE = "DO $$ BEGIN {sql}; EXCEPTION WHEN duplicate_column THEN NULL; END $$;"
+
+
+def _add_col(table: str, col_sql: str) -> None:
+    op.execute(_SAFE.format(sql=f"ALTER TABLE {table} ADD COLUMN {col_sql}"))
+
+
 def upgrade() -> None:
-    # ── concepts: add Learn Mode enrichment columns ───────────────────────────
-    with op.batch_alter_table("concepts") as batch_op:
-        batch_op.add_column(
-            sa.Column("time_spent_seconds", sa.Float(), nullable=True)
-        )
-        batch_op.add_column(
-            sa.Column("exam_likelihood", sa.Float(), nullable=False, server_default="0.5")
-        )
-        batch_op.add_column(
-            sa.Column("why_it_matters", sa.Text(), nullable=True)
-        )
-        batch_op.add_column(
-            sa.Column("prerequisites", sa.JSON(), nullable=True, server_default="[]")
-        )
-        batch_op.add_column(
-            sa.Column("related_concepts", sa.JSON(), nullable=True, server_default="[]")
-        )
-        batch_op.add_column(
-            sa.Column("evidence_timestamps", sa.JSON(), nullable=True, server_default="[]")
-        )
-        batch_op.add_column(
-            sa.Column("evidence_quote", sa.Text(), nullable=True)
-        )
+    # ── concepts: add Learn Mode enrichment columns (idempotent) ─────────────
+    _add_col("concepts", "time_spent_seconds FLOAT")
+    _add_col("concepts", "exam_likelihood FLOAT NOT NULL DEFAULT 0.5")
+    _add_col("concepts", "why_it_matters TEXT")
+    _add_col("concepts", "prerequisites JSON DEFAULT '[]'")
+    _add_col("concepts", "related_concepts JSON DEFAULT '[]'")
+    _add_col("concepts", "evidence_timestamps JSON DEFAULT '[]'")
+    _add_col("concepts", "evidence_quote TEXT")
 
     # ── summaries: rename summary_type → level, add title + created_at ───────
     # Check whether the rename was already done (idempotent safety)
@@ -83,6 +75,10 @@ def upgrade() -> None:
             )
 
     # ── chapters: create table ─────────────────────────────────────────────────
+    conn = op.get_bind()
+    insp = sa.inspect(conn)
+    if insp.has_table("chapters"):
+        return
     op.create_table(
         "chapters",
         sa.Column("id", sa.String(36), primary_key=True),
