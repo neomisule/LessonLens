@@ -18,7 +18,7 @@ from app.learn.llm_client import LLMClient
 from app.learn.concept_extractor import extract_concepts_from_segments
 from app.learn.schemas import ExtractedConcept
 from app.config import get_settings
-from app.vector.store import create_embedding
+from app.vector.store import create_embeddings_batch
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +41,24 @@ async def _load_segments(db: AsyncSession, lecture_id: str) -> list[dict]:
     ]
 
 
-async def _embed_concept(name: str, settings) -> list[float] | None:
-    """Generate an embedding vector for a concept name, if an API key is available."""
-    if not (settings.openai_api_key or settings.anthropic_api_key):
-        return None
+async def _embed_concepts_batch(names: list[str], settings) -> list[list[float] | None]:
+    """
+    Generate embeddings for all concept names in a single API call.
 
+    Falls back to a list of None on any failure so the rest of the pipeline
+    continues without embeddings (search will be unavailable but everything else works).
+    """
+    if not names or not (settings.openai_api_key or settings.anthropic_api_key):
+        return [None] * len(names)
     try:
-        return await create_embedding(name)
+        vectors = await create_embeddings_batch(names)
+        # Pad with None if the API returned fewer vectors than requested
+        while len(vectors) < len(names):
+            vectors.append(None)
+        return vectors
     except Exception as exc:
-        logger.warning("[concept_agent] Embedding failed for '%s': %s", name, exc)
-        return None
+        logger.warning("[concept_agent] Batch embedding failed: %s — concepts will have no vectors", exc)
+        return [None] * len(names)
 
 
 class ConceptAgent(BaseAgent):
@@ -98,9 +106,12 @@ class ConceptAgent(BaseAgent):
                 await db.execute(sa_delete(Concept).where(Concept.lecture_id == lecture_id))
 
                 # ── Persist new concepts ───────────────────────────────────────
+                # Batch-embed all concept names in a single API call
+                names      = [ec.name for ec in extracted]
+                embeddings = await _embed_concepts_batch(names, settings)
+
                 concept_dicts: list[dict] = []
-                for ec in extracted:
-                    embedding = await _embed_concept(ec.name, settings)
+                for ec, embedding in zip(extracted, embeddings):
                     concept = Concept(
                         lecture_id=lecture_id,
                         name=ec.name,
@@ -112,10 +123,7 @@ class ConceptAgent(BaseAgent):
                         timestamp_start=ec.timestamp_start,
                         timestamp_end=ec.timestamp_end,
                         embedding=embedding,
-                        # Store evidence quote for grounding verification
-                        # (mapped to a transient attr if not in model — ignored safely)
                     )
-                    # Attach evidence_quote if the model has it
                     if hasattr(concept, "evidence_quote"):
                         concept.evidence_quote = ec.evidence_quote
                     db.add(concept)

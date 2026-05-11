@@ -16,8 +16,11 @@ class ProcessingJob(Base):
     steps_total: Mapped[int] = mapped_column(Integer, default=7)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     progress_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Per-stage error messages: {"stage_name": "error text", ...}
+    # A stage can fail without failing the whole job (failure isolation).
+    stage_errors: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     lecture: Mapped["Lecture"] = relationship("Lecture", back_populates="processing_jobs")  # type: ignore[name-defined]  # noqa: F821

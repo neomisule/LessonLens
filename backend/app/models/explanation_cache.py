@@ -48,9 +48,6 @@ class ExplanationCache(Base):
         __import__("sqlalchemy").Integer(), nullable=True
     )
 
-    generated_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc),
-        server_default=func.now(),
-    )
+    generated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     concept: Mapped["Concept"] = relationship("Concept")  # type: ignore[name-defined]  # noqa: F821

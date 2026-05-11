@@ -20,8 +20,6 @@ class Summary(Base):
     # [{"heading": str, "content": str, "timestamp_start": float, "timestamp_end": float, "key_points": [str]}]
     sections: Mapped[list] = mapped_column(JSON, default=list)
 
-    created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     lecture: Mapped["Lecture"] = relationship("Lecture", back_populates="summaries")  # type: ignore[name-defined]  # noqa: F821

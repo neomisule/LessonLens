@@ -35,8 +35,6 @@ class TranscriptQuality(Base):
     segment_count: Mapped[int] = mapped_column(Integer, default=0)
     total_duration: Mapped[float] = mapped_column(Float, default=0.0)
 
-    created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     lecture: Mapped["Lecture"] = relationship("Lecture", back_populates="transcript_quality")  # type: ignore[name-defined]  # noqa: F821

@@ -92,13 +92,29 @@ identify 1-3 prerequisite ideas and briefly explain each in 1 sentence.
 BREAKDOWN_USER_DIAGRAM = (
     _CONCEPT_BLOCK
     + """
-Style: DIAGRAM DESCRIPTION
-Describe what a diagram, chart, or visual representation of this concept
-would look like. Use directional language (arrows, boxes, labels) to
-paint a mental picture. Base the structure only on the lecture content.
+Style: DIAGRAM
+Build a structured diagram that shows how this concept's components relate.
+Use 3–7 nodes total. Assign level 0 to the root/central concept, level 1
+to its direct sub-components, and level 2 to any details or sub-sub-components.
+Edges should have short, verb-phrase labels (e.g. "feeds into", "produces").
+Base ALL content strictly on the lecture data provided.
 {language_instruction}
+
+Return ONLY valid JSON — no markdown, no prose outside the JSON:
+{{
+  "explanation": {{
+    "title": "<concept name>",
+    "nodes": [
+      {{"id": "1", "label": "<component>",     "description": "<5–8 word desc>", "level": 0}},
+      {{"id": "2", "label": "<sub-component>", "description": "<5–8 word desc>", "level": 1}}
+    ],
+    "edges": [
+      {{"from": "1", "to": "2", "label": "<relationship>"}}
+    ]
+  }},
+  "source_quote": "<the single most relevant sentence from the evidence quote above>"
+}}
 """
-    + _RETURN_BLOCK
 )
 
 BREAKDOWN_USER_ELI5 = (

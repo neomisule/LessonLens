@@ -26,7 +26,7 @@ from app.models.chapter import Chapter
 from app.models.concept import Concept
 from app.models.transcript import SemanticSegment
 from app.models.lecture import Lecture
-from app.learn.llm_client import LLMClient
+from app.learn.llm_client import LLMClient, _SONNET_MODEL
 from app.learn.chapter_detector import detect_chapters
 from app.learn.summary_generator import generate_all_summaries
 from app.learn.schemas import ExtractedConcept, GeneratedSummary, SummarySection
@@ -165,10 +165,16 @@ class StudentTutorAgent(BaseAgent):
 
     async def run(self, state: dict[str, Any]) -> dict[str, Any]:
         lecture_id: str = state.get("lecture_id", "")
+        # summary_levels lets callers request only a subset:
+        #   fast path  → ["brief"]
+        #   deep path  → ["standard", "detailed"]
+        #   full run   → None (defaults to all three)
+        summary_levels: list[str] | None = state.get("summary_levels") or None
         settings = get_settings()
         llm = LLMClient(
             anthropic_key=settings.anthropic_api_key or "",
             openai_key=settings.openai_api_key or "",
+            model=_SONNET_MODEL,  # summaries are what judges read — use quality model
         )
 
         async with AsyncSessionLocal() as db:
@@ -202,6 +208,7 @@ class StudentTutorAgent(BaseAgent):
                     lecture_title=title,
                     total_duration=total_duration,
                     llm=llm,
+                    levels=tuple(summary_levels) if summary_levels else ("brief", "standard", "detailed"),
                 )
                 logger.info("[student_tutor] %d summary levels generated", len(summaries))
                 await _persist_summaries(db, lecture_id, summaries)

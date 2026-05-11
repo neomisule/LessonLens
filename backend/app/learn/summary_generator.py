@@ -82,12 +82,13 @@ async def generate_all_summaries(
     lecture_title: str,
     total_duration: float,
     llm: LLMClient,
+    levels: tuple[str, ...] | list[str] = ("brief", "standard", "detailed"),
 ) -> list[GeneratedSummary]:
     """
-    Generate brief, standard, and detailed summaries.
+    Generate summaries at the requested levels (brief / standard / detailed).
 
-    Returns only the levels that succeed. Falls back to empty list if LLM
-    is unavailable.
+    Pass levels=("brief",) for the fast path, levels=("standard","detailed")
+    for the background deep path.  Returns only the levels that succeed.
     """
     if not llm.available:
         logger.info("[summary_generator] LLM unavailable — returning empty summaries")
@@ -97,7 +98,10 @@ async def generate_all_summaries(
     title = lecture_title or "Lecture"
     results: list[GeneratedSummary] = []
 
-    for level in ("brief", "standard", "detailed"):
+    for level in levels:
+        if level not in ("brief", "standard", "detailed"):
+            logger.warning("[summary_generator] Unknown level '%s' — skipping", level)
+            continue
         summary = await _generate_one(
             level=level,
             segments=segments,

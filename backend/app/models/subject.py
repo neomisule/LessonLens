@@ -13,7 +13,9 @@ class Subject(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     color: Mapped[str] = mapped_column(String(20), default="#7C3AED")
     icon: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=func.now())
+    # Use server_default only — avoids tz-naive/tz-aware mismatch with asyncpg
+    # on TIMESTAMP WITHOUT TIME ZONE columns.
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     lectures: Mapped[list["Lecture"]] = relationship("Lecture", back_populates="subject", cascade="all, delete-orphan", lazy="selectin")  # type: ignore[name-defined]  # noqa: F821

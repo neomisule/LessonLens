@@ -11,6 +11,7 @@ class ProcessingJobRead(BaseModel):
     steps_total: int
     error_message: str | None
     progress_metadata: dict | None = None
+    stage_errors: dict | None = None
     started_at: datetime | None
     completed_at: datetime | None
     created_at: datetime

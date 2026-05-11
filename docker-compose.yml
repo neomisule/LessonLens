@@ -10,6 +10,7 @@ x-backend-env: &backend-env
   ENVIRONMENT: development
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
   OPENAI_API_KEY: ${OPENAI_API_KEY}
+  GROQ_API_KEY: ${GROQ_API_KEY:-}
   ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
   SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-prod}
   ALLOWED_ORIGINS: http://localhost:3000
@@ -88,7 +89,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    command: celery -A app.jobs.worker.celery_app worker --loglevel=info --concurrency=1
+    command: celery -A app.jobs.worker.celery_app worker --loglevel=info --concurrency=2
 
   # ── Next.js frontend ───────────────────────────────────────────────────────
   frontend:
@@ -100,6 +101,7 @@ services:
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      BACKEND_URL: http://backend:8000
     ports:
       - "3000:3000"
     depends_on:

@@ -80,5 +80,5 @@ class ProgressReporter:
                 return
             job.status = "failed"
             job.error_message = error
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now()
             await db.commit()

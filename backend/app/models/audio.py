@@ -14,4 +14,4 @@ class GeneratedAudio(Base):
     source_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     storage_path: Mapped[str] = mapped_column(Text, nullable=False)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())

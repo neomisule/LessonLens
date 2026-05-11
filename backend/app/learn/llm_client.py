@@ -11,7 +11,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "claude-3-5-haiku-20241022"
+_HAIKU_MODEL   = "claude-3-5-haiku-20241022"   # fast/cheap — bulk extraction
+_SONNET_MODEL  = "claude-3-5-sonnet-20241022"  # quality — summaries judges read
+_DEFAULT_MODEL = _HAIKU_MODEL
 _FALLBACK_MODEL = "gpt-4o-mini"
 
 

@@ -13,6 +13,8 @@ import { AudioPlayer } from "@/components/content/AudioPlayer";
 import { cn } from "@/lib/utils/cn";
 import { useExplain, useGenerateAudio, useConceptExplanations } from "@/lib/hooks/useBreakdown";
 import { breakdownApi } from "@/lib/api/breakdown";
+import { DiagramView } from "@/components/content/DiagramView";
+import type { DiagramData } from "@/components/content/DiagramView";
 import type { Concept } from "@/lib/types/content";
 import type { ExplanationStyle, Explanation } from "@/lib/types/breakdown";
 
@@ -22,7 +24,7 @@ const IMPORTANCE_CONFIG = {
   supplemental: { label: "Supplemental", icon: Lightbulb,  variant: "outline"    as const },
 };
 
-// Typing animation for explanation text
+// Plain text explanation
 function TypedText({ text }: { text: string }) {
   return (
     <motion.p
@@ -34,6 +36,23 @@ function TypedText({ text }: { text: string }) {
       {text}
     </motion.p>
   );
+}
+
+/**
+ * Renders either a DiagramView (if content is diagram JSON) or plain TypedText.
+ */
+function ExplanationContent({ exp }: { exp: Explanation }) {
+  if (exp.style === "diagram") {
+    try {
+      const data = JSON.parse(exp.content) as DiagramData;
+      if (Array.isArray(data?.nodes) && data.nodes.length > 0) {
+        return <DiagramView data={data} />;
+      }
+    } catch {
+      // Fall through to plain text if JSON parse fails
+    }
+  }
+  return <TypedText text={exp.content} />;
 }
 
 interface ConfusionRepairCardProps {
@@ -212,7 +231,7 @@ export function ConfusionRepairCard({ concept, lectureId }: ConfusionRepairCardP
                     exit={{ opacity: 0 }}
                     className="flex flex-col gap-3 rounded-xl border border-lens-glass-border bg-white/3 p-4"
                   >
-                    <TypedText text={activeExp.content} />
+                    <ExplanationContent exp={activeExp} />
 
                     {/* Source quote */}
                     {activeExp.source_quote && (

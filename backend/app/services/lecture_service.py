@@ -55,7 +55,7 @@ async def start_processing(db: AsyncSession, lecture: Lecture) -> ProcessingJob:
     job = ProcessingJob(
         lecture_id=lecture.id,
         status="queued",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(),
     )
     db.add(job)
     await db.commit()

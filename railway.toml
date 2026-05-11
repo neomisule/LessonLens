@@ -1,17 +1,27 @@
+# Railway treats each service separately — this file is a reference guide.
+# Create 5 services in the Railway dashboard pointing to this repo:
+#
+#  Service     | Root Dir   | Dockerfile Target | Start Command
+#  ------------|------------|-------------------|-----------------------------------------------
+#  backend     | backend/   | runner            | uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+#  worker      | backend/   | runner            | celery -A app.jobs.worker.celery_app worker --loglevel=info --concurrency=2
+#  frontend    | frontend/  | runner            | node server.js
+#  postgres    | (Railway template: pgvector/pgvector:pg16)
+#  redis       | (Railway template: Redis)
+#
+# Environment variables for backend + worker:
+#   DATABASE_URL      = ${{Postgres.DATABASE_URL}}  (replace asyncpg with postgresql+asyncpg)
+#   REDIS_URL         = ${{Redis.REDIS_URL}}
+#   ANTHROPIC_API_KEY = sk-ant-...
+#   GROQ_API_KEY      = gsk_...
+#   OPENAI_API_KEY    = sk-...
+#   SECRET_KEY        = <random string>
+#   APP_ENV           = production
+#   ALLOWED_ORIGINS   = https://your-frontend.vercel.app
+#
+# Environment variables for frontend (Vercel):
+#   NEXT_PUBLIC_API_URL = https://your-backend.railway.app
+#   BACKEND_URL         = https://your-backend.railway.app
+
 [build]
 builder = "dockerfile"
-dockerfilePath = "backend/Dockerfile"
-
-[deploy]
-startCommand = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2"
-healthcheckPath = "/health"
-healthcheckTimeout = 30
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
-
-[[services]]
-name = "lecturelens-backend"
-
-[[services]]
-name = "lecturelens-worker"
-startCommand = "celery -A app.jobs.celery_app worker --loglevel=info --concurrency=2"

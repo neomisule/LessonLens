@@ -20,8 +20,8 @@ class Lecture(Base):
     processing_status: Mapped[str] = mapped_column(String(50), default="queued", index=True)
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     processed_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     subject: Mapped["Subject"] = relationship("Subject", back_populates="lectures")  # type: ignore[name-defined]  # noqa: F821
     transcript_segments: Mapped[list["TranscriptSegment"]] = relationship("TranscriptSegment", back_populates="lecture", cascade="all, delete-orphan")  # type: ignore[name-defined]  # noqa: F821

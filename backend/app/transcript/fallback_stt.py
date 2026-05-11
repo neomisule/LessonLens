@@ -3,13 +3,10 @@
 Used when YouTube captions are unavailable or have poor quality.
 
 Flow:
-  1. Download audio from YouTube using yt-dlp (subprocess)
-  2. Transcribe with OpenAI Whisper API (verbose_json with segment timestamps)
+  1. Download audio from YouTube using yt-dlp
+  2. Transcribe with Groq Whisper API (primary — ~10-20x faster than OpenAI)
+     OR OpenAI Whisper API (secondary fallback)
   3. Return list[RawSegment]
-
-Requires:
-  - yt-dlp installed and on PATH  (or installed as a Python package)
-  - OPENAI_API_KEY set in settings
 """
 import asyncio
 import logging
@@ -31,6 +28,13 @@ _OPENAI_AVAILABLE = False
 try:
     import openai  # noqa: F401
     _OPENAI_AVAILABLE = True
+except ImportError:
+    pass
+
+_GROQ_AVAILABLE = False
+try:
+    import groq  # noqa: F401
+    _GROQ_AVAILABLE = True
 except ImportError:
     pass
 
@@ -72,23 +76,44 @@ async def download_audio(youtube_url: str, output_dir: str) -> str:
     return await asyncio.get_event_loop().run_in_executor(None, _download)
 
 
-async def transcribe_with_whisper(
-    audio_path: str,
-    api_key: str,
-) -> list[RawSegment]:
-    """
-    Transcribe an audio file using the OpenAI Whisper API.
+async def transcribe_with_groq(audio_path: str, api_key: str) -> list[RawSegment]:
+    """Transcribe using Groq Whisper — ~10-20x faster than OpenAI Whisper."""
+    if not _GROQ_AVAILABLE:
+        raise RuntimeError("groq package not installed")
 
-    Uses verbose_json output to get per-segment timestamps and confidence.
-    Returns list[RawSegment] matching the same interface as YouTube captions.
-    """
+    from groq import AsyncGroq
+
+    client = AsyncGroq(api_key=api_key)
+    with open(audio_path, "rb") as f:
+        response = await client.audio.transcriptions.create(
+            file=(os.path.basename(audio_path), f),
+            model="whisper-large-v3-turbo",
+            response_format="verbose_json",
+            timestamp_granularities=["segment"],
+        )
+
+    segments: list[RawSegment] = []
+    for seg in (getattr(response, "segments", None) or []):
+        duration = seg.end - seg.start
+        if duration <= 0:
+            continue
+        segments.append(RawSegment(
+            text=seg.text.strip(),
+            start=seg.start,
+            duration=duration,
+            confidence=0.92,  # Groq doesn't expose no_speech_prob; assume high quality
+        ))
+    return segments
+
+
+async def transcribe_with_openai(audio_path: str, api_key: str) -> list[RawSegment]:
+    """Transcribe using OpenAI Whisper API (secondary fallback)."""
     if not _OPENAI_AVAILABLE:
-        raise RuntimeError("openai package is not installed. Install it with: pip install openai")
+        raise RuntimeError("openai package is not installed")
 
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=api_key)
-
     with open(audio_path, "rb") as f:
         response = await client.audio.transcriptions.create(
             model="whisper-1",
@@ -99,43 +124,51 @@ async def transcribe_with_whisper(
 
     segments: list[RawSegment] = []
     for seg in (response.segments or []):
-        # no_speech_prob is available on verbose responses
         no_speech = getattr(seg, "no_speech_prob", 0.0) or 0.0
         confidence = max(0.0, min(1.0, 1.0 - no_speech))
         duration = seg.end - seg.start
-
         if duration <= 0:
             continue
-
         segments.append(RawSegment(
             text=seg.text.strip(),
             start=seg.start,
             duration=duration,
             confidence=confidence,
         ))
-
     return segments
 
 
 async def transcribe_fallback(
     youtube_url: str,
-    api_key: str,
+    groq_api_key: str = "",
+    openai_api_key: str = "",
 ) -> list[RawSegment] | None:
     """
     Orchestrate audio download + Whisper transcription.
-
-    Returns None (and logs the error) rather than raising, so callers can
-    handle failure gracefully without crashing the entire pipeline.
+    Tries Groq first (fast), falls back to OpenAI, returns None on total failure.
     """
     with tempfile.TemporaryDirectory(prefix="lecturelens_audio_") as tmpdir:
         try:
             logger.info("Downloading audio for Whisper fallback: %s", youtube_url)
             audio_path = await download_audio(youtube_url, tmpdir)
 
-            logger.info("Transcribing audio with Whisper: %s", audio_path)
-            segments = await transcribe_with_whisper(audio_path, api_key)
-            logger.info("Whisper produced %d segments", len(segments))
-            return segments
+            if groq_api_key and _GROQ_AVAILABLE:
+                try:
+                    logger.info("Transcribing with Groq Whisper (fast path)")
+                    segs = await transcribe_with_groq(audio_path, groq_api_key)
+                    logger.info("Groq Whisper produced %d segments", len(segs))
+                    return segs
+                except Exception as exc:
+                    logger.warning("Groq Whisper failed (%s), trying OpenAI", exc)
+
+            if openai_api_key and _OPENAI_AVAILABLE:
+                logger.info("Transcribing with OpenAI Whisper (fallback)")
+                segs = await transcribe_with_openai(audio_path, openai_api_key)
+                logger.info("OpenAI Whisper produced %d segments", len(segs))
+                return segs
+
+            logger.error("No STT API key configured for Whisper fallback")
+            return None
 
         except Exception as exc:
             logger.error("Whisper fallback failed for %s: %s", youtube_url, exc)

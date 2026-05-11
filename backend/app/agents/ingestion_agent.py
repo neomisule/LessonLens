@@ -127,13 +127,20 @@ class IngestionAgent:
         self,
         youtube_url: str,
     ) -> list[RawSegment] | None:
-        """Attempt Whisper fallback; return None on any failure."""
-        if not self._settings.openai_api_key:
-            logger.warning("[ingestion] Whisper fallback skipped: OPENAI_API_KEY not configured")
+        """Attempt Whisper fallback; tries Groq first (fast), then OpenAI."""
+        groq_key = getattr(self._settings, "groq_api_key", "") or ""
+        openai_key = self._settings.openai_api_key or ""
+
+        if not groq_key and not openai_key:
+            logger.warning("[ingestion] Whisper fallback skipped: no STT API key configured")
             return None
 
         from app.transcript.fallback_stt import transcribe_fallback
-        return await transcribe_fallback(youtube_url, self._settings.openai_api_key)
+        return await transcribe_fallback(
+            youtube_url,
+            groq_api_key=groq_key,
+            openai_api_key=openai_key,
+        )
 
 
 class InsufficientTranscriptError(RuntimeError):

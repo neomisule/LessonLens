@@ -19,6 +19,7 @@ structlog>=24.4.0
 # Transcript ingestion
 youtube-transcript-api>=0.6.2
 openai>=1.54.0
+groq>=0.11.0
 yt-dlp>=2024.11.4
 
 # Break It Down — TTS

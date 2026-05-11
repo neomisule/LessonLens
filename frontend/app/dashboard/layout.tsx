@@ -9,6 +9,7 @@ import { AddLectureUrlForm } from "@/components/lectures/AddLectureUrlForm";
 import { LectureSidebar } from "@/components/lectures/LectureSidebar";
 import { useAppStore } from "@/lib/store/appStore";
 import { Button } from "@/components/ui/button";
+import { LogoIcon } from "@/components/shared/LogoIcon";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
@@ -32,8 +33,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Header */}
       <div className="flex h-14 items-center justify-between px-4 border-b border-lens-glass-border shrink-0">
         <Link href="/" className="flex items-center gap-2 group" aria-label="LectureLens home">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-lens-gradient text-white text-xs font-bold shadow-sm group-hover:scale-105 transition-transform">
-            L
+          <div className="group-hover:scale-105 transition-transform">
+            <LogoIcon size="md" />
           </div>
           <span className="text-sm font-semibold tracking-tight">LectureLens</span>
         </Link>
@@ -103,8 +104,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {sidebarCollapsed && (
         <div className="hidden lg:flex flex-col items-center gap-4 border-r border-lens-glass-border p-2 shrink-0">
           <Link href="/" aria-label="LectureLens home">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-lens-gradient text-white text-xs font-bold hover:scale-105 transition-transform">
-              L
+            <div className="hover:scale-105 transition-transform">
+              <LogoIcon size="md" />
             </div>
           </Link>
           <Button
@@ -161,9 +162,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Menu className="h-4 w-4" />
           </Button>
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-lens-gradient text-white text-[10px] font-bold">
-              L
-            </div>
+            <LogoIcon size="xs" />
             <span className="text-sm font-semibold">LectureLens</span>
           </Link>
         </div>

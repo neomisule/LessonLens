@@ -163,7 +163,7 @@ async def update_confidence(
     mastery.ease_factor = new_ef
     mastery.next_review_interval_days = new_interval
     mastery.next_review_at = due_at
-    mastery.last_reviewed_at = datetime.now(timezone.utc)
+    mastery.last_reviewed_at = datetime.now()
     mastery.attempts += 1
     if confidence == "mastered":
         mastery.correct_count += 1

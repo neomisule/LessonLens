@@ -13,6 +13,7 @@ import { MasteryTracker } from "@/components/tracking/MasteryTracker";
 import { SubjectMindMap } from "@/components/mindmap/SubjectMindMap";
 import { SearchResults } from "@/components/search/SearchResults";
 import { ErrorStateCard } from "@/components/shared/ErrorStateCard";
+import { YouTubePlayer } from "@/components/lectures/YouTubePlayer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
@@ -145,6 +146,13 @@ export default function LectureDashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* ── YouTube player (collapsible) ───────────────────────────────────── */}
+      {lecture.youtube_id && (
+        <div className="border-b border-lens-glass-border px-6 py-3">
+          <YouTubePlayer youtubeId={lecture.youtube_id} />
+        </div>
+      )}
 
       {/* ── Content area ───────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-6">

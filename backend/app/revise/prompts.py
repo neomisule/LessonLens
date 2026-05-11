@@ -101,6 +101,84 @@ For true/false:
 Return: {{"questions": [...]}}"""
 
 
+# ── Batch flashcard generation (all concepts in one LLM call) ────────────────
+# Replaces N individual FLASHCARD_GEN_USER calls with 1 call per 10-concept batch.
+
+BATCH_FLASHCARD_SYSTEM = """\
+You are creating study flashcards for multiple lecture concepts in one pass.
+Every answer must be grounded only in the provided lecture evidence.
+Return ONLY valid JSON. No markdown, no preamble.
+"""
+
+BATCH_FLASHCARD_USER = """\
+Generate flashcards for the concepts below. Each entry specifies how many cards to create.
+
+Card types (in priority order):
+1. surface  — "What is X?" → definition from the transcript
+2. deep     — Why/how/when question that tests understanding, not just recall
+3. application — (only for 3-card concepts) A scenario from the lecture; apply the concept
+
+{concepts_block}
+
+Return:
+{{
+  "results": [
+    {{
+      "concept_name": "exact concept name",
+      "cards": [
+        {{
+          "question_type": "surface" | "deep" | "application",
+          "front": "the question",
+          "back": "the answer (transcript-grounded only)",
+          "difficulty": "easy" | "medium" | "hard",
+          "hint": "1-sentence nudge or null",
+          "evidence_quote": "verbatim transcript quote supporting the back"
+        }}
+      ]
+    }}
+  ]
+}}"""
+
+
+# ── Batch quiz generation (all concepts in one LLM call) ─────────────────────
+
+BATCH_QUIZ_SYSTEM = """\
+You are writing exam questions for multiple lecture concepts in one pass.
+All correct answers must be directly supported by the provided transcript evidence.
+Distractors must be plausible but clearly wrong per the transcript. No outside facts.
+Return ONLY valid JSON.
+"""
+
+BATCH_QUIZ_USER = """\
+Generate quiz questions for the concepts below. Each entry specifies how many questions.
+Mix MCQ (preferred for core) and true/false.
+
+{concepts_block}
+
+For MCQ return options as ["A. ...", "B. ...", "C. ...", "D. ..."] and correct_answer as "A"/"B"/etc.
+For true/false return options as null and correct_answer as "True" or "False".
+
+Return:
+{{
+  "results": [
+    {{
+      "concept_name": "exact concept name",
+      "questions": [
+        {{
+          "question_type": "multiple_choice" | "true_false",
+          "question_text": "...",
+          "options": [...] or null,
+          "correct_answer": "...",
+          "explanation": "why this is correct, citing evidence quote",
+          "evidence_quote": "verbatim transcript quote",
+          "difficulty": "easy" | "medium" | "hard"
+        }}
+      ]
+    }}
+  ]
+}}"""
+
+
 # ── Oral exam questions ───────────────────────────────────────────────────────
 
 ORAL_QUESTION_TEMPLATES = [

@@ -175,6 +175,70 @@ Return:
 Aim for 8-12 sections."""
 
 
+# ── Multi-segment concept extraction (batch mode) ────────────────────────────
+# Replaces the old single-segment CONCEPT_EXTRACTION_USER prompt.
+# Sends BATCH_SIZE segments in one LLM call to reduce API round-trips.
+
+CONCEPT_EXTRACTION_MULTI_USER = """\
+Below are {n_segments} lecture segments from {first_start:.1f}s to {last_end:.1f}s.
+
+{segments_block}
+
+GROUNDING RULES:
+1. Only extract concepts explicitly defined or introduced in the segment shown.
+2. Definitions must come from the transcript — no outside knowledge.
+3. The timestamp_start field MUST be the exact start time from the segment header.
+4. For each result, segment_index must match the index in the === header.
+
+For each segment, extract up to 3 key concepts. Return:
+{{
+  "results": [
+    {{
+      "segment_index": <int matching the segment header>,
+      "concepts": [
+        {{
+          "name": "exact term as used",
+          "definition": "definition as stated in the lecture",
+          "explanation": "how it is explained in this segment",
+          "examples": ["examples the lecturer mentions"],
+          "importance": "core" | "supporting" | "supplemental",
+          "tags": ["1-3 subject area tags"],
+          "timestamp_start": <exact float from segment header>,
+          "evidence_quote": "verbatim sentence from transcript"
+        }}
+      ]
+    }}
+  ]
+}}"""
+
+
+# ── Combined concept enrichment (why-it-matters + relations, single batch) ────
+# Replaces N individual why_it_matters calls + 1 relations call with 1 call.
+
+CONCEPT_ENRICHMENT_SYSTEM = """\
+You are enriching metadata for lecture concepts. For each concept:
+1. Write a specific why_it_matters statement (1-2 sentences, real-world relevance, no generic phrases).
+2. List prerequisite concept names from this lecture that must be understood first.
+3. List related concept names from this lecture discussed alongside this one.
+Base everything only on the data provided. Return ONLY valid JSON."""
+
+CONCEPT_ENRICHMENT_USER = """\
+Concepts from this lecture:
+{concepts_block}
+
+Return:
+{{
+  "results": [
+    {{
+      "name": "exact concept name",
+      "why_it_matters": "1-2 sentence specific real-world relevance",
+      "prerequisites": ["other concept name from list", ...],
+      "related": ["other concept name from list", ...]
+    }}
+  ]
+}}"""
+
+
 # ── Why it matters ────────────────────────────────────────────────────────────
 
 WHY_IT_MATTERS_SYSTEM = """\

@@ -7,13 +7,22 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     app_secret_key: str = "change-me"
+    # Comma-separated origins accepted; override via ALLOWED_ORIGINS env var
     backend_cors_origins: list[str] = ["http://localhost:3000"]
+    allowed_origins: str = ""  # e.g. "https://foo.vercel.app,https://bar.com"
+
+    @property
+    def CORS_ORIGINS(self) -> list[str]:  # type: ignore[override]
+        if self.allowed_origins:
+            return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+        return self.backend_cors_origins
 
     database_url: str = "postgresql+asyncpg://lecturelens:lecturelens_dev@localhost:5432/lecturelens"
     redis_url: str = "redis://localhost:6379/0"
 
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+    groq_api_key: str = ""
     elevenlabs_api_key: str = ""
 
     # Directory where generated audio files are stored
@@ -22,11 +31,6 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
-
-    # Alias so main.py can reference settings.CORS_ORIGINS
-    @property
-    def CORS_ORIGINS(self) -> list[str]:
-        return self.backend_cors_origins
 
 
 @lru_cache

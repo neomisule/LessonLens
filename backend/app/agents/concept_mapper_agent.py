@@ -20,6 +20,9 @@ from app.models.chapter import Chapter
 from app.learn.llm_client import LLMClient
 from app.learn.exam_scorer import compute_exam_likelihood, compute_time_spent
 from app.learn.prompts import (
+    CONCEPT_ENRICHMENT_SYSTEM,
+    CONCEPT_ENRICHMENT_USER,
+    # Legacy single-concept prompts kept for reference but no longer called
     WHY_IT_MATTERS_SYSTEM,
     WHY_IT_MATTERS_USER,
     CONCEPT_RELATIONS_SYSTEM,
@@ -30,64 +33,60 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 
-async def _enrich_why_it_matters(
-    concept: Concept,
-    llm: LLMClient,
-) -> str | None:
-    """Call LLM to generate a why-it-matters blurb for a single concept."""
-    response = await llm.extract_json(
-        WHY_IT_MATTERS_SYSTEM,
-        WHY_IT_MATTERS_USER.format(
-            name=concept.name,
-            definition=concept.definition[:300],
-            explanation=(concept.explanation or "")[:200],
-            tags=", ".join(concept.tags or []),
-        ),
-    )
-    return response.get("why_it_matters") or None
+_ENRICH_BATCH_SIZE = 20  # concepts per enrichment call
 
 
-async def _enrich_relations(
+async def _enrich_all_batch(
     concepts: list[Concept],
     llm: LLMClient,
 ) -> dict[str, dict]:
     """
-    Single LLM call to get prerequisites + related for all concepts.
+    Single (or a few) LLM call(s) to get why_it_matters + prerequisites + related
+    for all concepts at once.
 
-    Returns {concept_name_lower: {"prerequisites": [...], "related": [...]}}
+    Replaces: N individual why_it_matters calls + 1 relations call
+    With:     ceil(N / 20) combined calls
+
+    Returns {concept_name_lower: {"why_it_matters": str, "prerequisites": [...], "related": [...]}}
     """
     if not concepts:
         return {}
 
-    all_concepts_str = "\n".join(
-        f"- {c.name} ({c.importance}): {c.definition[:80]}" for c in concepts
-    )
-    response = await llm.extract_json(
-        CONCEPT_RELATIONS_SYSTEM,
-        CONCEPT_RELATIONS_USER.format(all_concepts=all_concepts_str),
-    )
-
-    result: dict[str, dict] = {}
-    relations = response.get("relations", [])
-    if not isinstance(relations, list):
-        return result
-
     valid_names = {c.name.lower() for c in concepts}
-    for entry in relations:
-        if not isinstance(entry, dict):
+    result: dict[str, dict] = {}
+
+    for batch_start in range(0, len(concepts), _ENRICH_BATCH_SIZE):
+        batch = concepts[batch_start : batch_start + _ENRICH_BATCH_SIZE]
+
+        concepts_block = "\n".join(
+            f"- {c.name} ({c.importance}): {c.definition[:120]}"
+            for c in batch
+        )
+        response = await llm.extract_json(
+            CONCEPT_ENRICHMENT_SYSTEM,
+            CONCEPT_ENRICHMENT_USER.format(concepts_block=concepts_block),
+        )
+
+        results = response.get("results", [])
+        if not isinstance(results, list):
             continue
-        name = str(entry.get("name", "")).strip().lower()
-        if not name:
-            continue
-        prereqs = [
-            p for p in (entry.get("prerequisites") or [])
-            if isinstance(p, str) and p.lower() in valid_names
-        ]
-        related = [
-            r for r in (entry.get("related") or [])
-            if isinstance(r, str) and r.lower() in valid_names
-        ]
-        result[name] = {"prerequisites": prereqs, "related": related}
+
+        for entry in results:
+            if not isinstance(entry, dict):
+                continue
+            name = str(entry.get("name", "")).strip().lower()
+            if not name:
+                continue
+            why = str(entry.get("why_it_matters", "")).strip() or None
+            prereqs = [
+                p for p in (entry.get("prerequisites") or [])
+                if isinstance(p, str) and p.lower() in valid_names
+            ]
+            related = [
+                r for r in (entry.get("related") or [])
+                if isinstance(r, str) and r.lower() in valid_names
+            ]
+            result[name] = {"why_it_matters": why, "prerequisites": prereqs, "related": related}
 
     return result
 
@@ -168,24 +167,24 @@ class ConceptMapperAgent(BaseAgent):
                             "quote": concept.evidence_quote,
                         }]
 
-                # ── 2. LLM: why-it-matters (per concept) ──────────────────────
+                # ── 2. LLM: combined enrichment (why_it_matters + relations) ──
+                # One batch call replaces N per-concept calls + 1 relations call
                 if llm.available:
+                    enrichment = await _enrich_all_batch(concepts, llm)
+                    logger.info(
+                        "[concept_mapper] Enriched %d/%d concepts in batch",
+                        len(enrichment), len(concepts),
+                    )
                     for concept in concepts:
-                        if not concept.why_it_matters:
-                            wit = await _enrich_why_it_matters(concept, llm)
-                            if wit:
-                                concept.why_it_matters = wit
-
-                    # ── 3. LLM: concept relations (single batch) ────────────────
-                    relations = await _enrich_relations(concepts, llm)
-                    for concept in concepts:
-                        rel = relations.get(concept.name.lower(), {})
-                        if rel.get("prerequisites"):
-                            concept.prerequisites = rel["prerequisites"]
-                        if rel.get("related"):
-                            concept.related_concepts = rel["related"]
+                        data = enrichment.get(concept.name.lower(), {})
+                        if data.get("why_it_matters") and not concept.why_it_matters:
+                            concept.why_it_matters = data["why_it_matters"]
+                        if data.get("prerequisites"):
+                            concept.prerequisites = data["prerequisites"]
+                        if data.get("related"):
+                            concept.related_concepts = data["related"]
                 else:
-                    logger.info("[concept_mapper] LLM unavailable — skipping why_it_matters + relations")
+                    logger.info("[concept_mapper] LLM unavailable — skipping enrichment")
 
                 # ── 4. Chapter assignment ──────────────────────────────────────
                 if chapters:

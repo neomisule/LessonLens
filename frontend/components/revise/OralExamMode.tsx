@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Send, RotateCcw, ChevronDown, ChevronUp, Clock } from "lucide-react";
+import { Mic, MicOff, Send, RotateCcw, ChevronDown, ChevronUp, Clock, Volume2, Square } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useQuery } from "@tanstack/react-query";
 import { contentApi } from "@/lib/api/content";
@@ -11,10 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Concept } from "@/lib/types/content";
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
 interface OralExamModeProps {
   lectureId: string;
   className?: string;
 }
+
+type VoiceState = "idle" | "speaking" | "listening" | "transcribing";
+
+// ── ScoreBadge ─────────────────────────────────────────────────────────────────
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -28,14 +34,112 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
+// ── Voice helpers ──────────────────────────────────────────────────────────────
+
+/** Speak text via browser TTS (Web Speech API). Returns a cancel fn. */
+function speakText(text: string, onEnd?: () => void): () => void {
+  if (typeof window === "undefined" || !window.speechSynthesis) {
+    onEnd?.();
+    return () => {};
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate  = 0.95;
+  utterance.pitch = 1;
+  utterance.onend = () => onEnd?.();
+  window.speechSynthesis.speak(utterance);
+  return () => window.speechSynthesis.cancel();
+}
+
+/** Check if Web Speech Recognition is available. */
+function hasSpeechRecognition(): boolean {
+  if (typeof window === "undefined") return false;
+  return "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
+}
+
+// ── OralSession ────────────────────────────────────────────────────────────────
+
 function OralSession({ lectureId, concept }: { lectureId: string; concept: Concept }) {
   const { data: question, isLoading: qLoading, refetch } = useOralQuestion(
-    lectureId, concept.id
+    lectureId, concept.id,
   );
   const { mutate: evaluate, isPending, data: feedback } = useEvaluateOralAnswer();
 
-  const [answer, setAnswer] = useState("");
+  const [answer,       setAnswer]       = useState("");
   const [showCitations, setShowCitations] = useState(false);
+  const [voiceState,   setVoiceState]   = useState<VoiceState>("idle");
+  const [voiceError,   setVoiceError]   = useState<string | null>(null);
+
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const cancelTtsRef   = useRef<(() => void) | null>(null);
+
+  // ── Listen (TTS) ────────────────────────────────────────────────────────────
+
+  const handleListen = useCallback(() => {
+    if (!question) return;
+    if (voiceState === "speaking") {
+      cancelTtsRef.current?.();
+      setVoiceState("idle");
+      return;
+    }
+    setVoiceError(null);
+    setVoiceState("speaking");
+    cancelTtsRef.current = speakText(question.question_text, () => setVoiceState("idle"));
+  }, [question, voiceState]);
+
+  // ── Speak answer (Speech Recognition) ──────────────────────────────────────
+
+  const handleSpeak = useCallback(() => {
+    if (!hasSpeechRecognition()) {
+      setVoiceError("Speech recognition is not supported in this browser. Try Chrome or Edge.");
+      return;
+    }
+
+    if (voiceState === "listening") {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    setVoiceError(null);
+    setVoiceState("listening");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const SpeechRecognitionCtor: (new () => SpeechRecognition) | undefined =
+      w.SpeechRecognition ?? w.webkitSpeechRecognition;
+
+    if (!SpeechRecognitionCtor) return;
+    const SpeechRecognition = SpeechRecognitionCtor;
+
+    const rec = new SpeechRecognition() as SpeechRecognition;
+    rec.continuous    = true;
+    rec.interimResults = false;
+    rec.lang          = "en-US";
+
+    rec.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((r) => r[0].transcript)
+        .join(" ")
+        .trim();
+      setAnswer((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    };
+
+    rec.onend = () => {
+      setVoiceState("idle");
+      recognitionRef.current = null;
+    };
+
+    rec.onerror = (event) => {
+      setVoiceState("idle");
+      recognitionRef.current = null;
+      if (event.error !== "aborted") {
+        setVoiceError(`Mic error: ${event.error}`);
+      }
+    };
+
+    recognitionRef.current = rec;
+    rec.start();
+  }, [voiceState]);
 
   const handleSubmit = () => {
     if (!question || !answer.trim()) return;
@@ -44,6 +148,15 @@ function OralSession({ lectureId, concept }: { lectureId: string; concept: Conce
       question_text: question.question_text,
       student_answer: answer.trim(),
     });
+  };
+
+  const handleReset = () => {
+    recognitionRef.current?.stop();
+    cancelTtsRef.current?.();
+    setAnswer("");
+    setVoiceState("idle");
+    setVoiceError(null);
+    refetch();
   };
 
   if (qLoading) {
@@ -55,7 +168,7 @@ function OralSession({ lectureId, concept }: { lectureId: string; concept: Conce
   return (
     <div className="flex flex-col gap-4">
       {/* Question card */}
-      <div className="glass-card rounded-2xl p-5 space-y-2">
+      <div className="glass-card rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-2">
           <Mic className="h-4 w-4 text-lens-primary" />
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -64,46 +177,104 @@ function OralSession({ lectureId, concept }: { lectureId: string; concept: Conce
           {question.timestamp_start !== null && (
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground ml-auto">
               <Clock className="h-3 w-3" />
-              <span>{Math.floor(question.timestamp_start / 60)}:{String(Math.floor(question.timestamp_start % 60)).padStart(2, "0")}</span>
+              <span>
+                {Math.floor(question.timestamp_start / 60)}:
+                {String(Math.floor(question.timestamp_start % 60)).padStart(2, "0")}
+              </span>
             </div>
           )}
         </div>
+
         <p className="text-sm font-medium leading-relaxed">{question.question_text}</p>
+
+        {/* Listen button */}
+        <button
+          onClick={handleListen}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
+            voiceState === "speaking"
+              ? "bg-lens-purple/20 text-lens-purple-light border border-lens-purple/30 animate-pulse"
+              : "bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 hover:text-foreground",
+          )}
+        >
+          {voiceState === "speaking" ? (
+            <><Square className="h-3 w-3" /> Stop</>
+          ) : (
+            <><Volume2 className="h-3 w-3" /> Listen to question</>
+          )}
+        </button>
       </div>
 
       {/* Answer area */}
       {!feedback && (
         <>
-          <textarea
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Type your answer here…"
-            rows={5}
-            className={cn(
-              "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3",
-              "text-sm text-foreground placeholder:text-muted-foreground",
-              "focus:outline-none focus:ring-1 focus:ring-lens-primary/50 resize-none",
-            )}
-          />
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setAnswer(""); refetch(); }}
-              className="text-xs gap-1"
+          <div className="relative">
+            <textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              placeholder={
+                voiceState === "listening"
+                  ? "Listening… speak your answer"
+                  : "Type your answer here, or use the mic button below…"
+              }
+              rows={5}
+              className={cn(
+                "w-full rounded-xl border bg-white/5 px-4 py-3",
+                "text-sm text-foreground placeholder:text-muted-foreground",
+                "focus:outline-none focus:ring-1 focus:ring-lens-primary/50 resize-none",
+                voiceState === "listening"
+                  ? "border-lens-primary/50 ring-1 ring-lens-primary/30"
+                  : "border-white/10",
+              )}
+            />
+          </div>
+
+          {/* Voice error */}
+          {voiceError && (
+            <p className="text-xs text-red-400">{voiceError}</p>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            {/* Speak button */}
+            <button
+              onClick={handleSpeak}
+              title={hasSpeechRecognition() ? "Speak your answer" : "Speech recognition unavailable"}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border transition-all",
+                voiceState === "listening"
+                  ? "bg-red-500/20 text-red-400 border-red-500/30 animate-pulse"
+                  : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-foreground",
+                !hasSpeechRecognition() && "opacity-40 cursor-not-allowed",
+              )}
+              disabled={!hasSpeechRecognition() || voiceState === "speaking"}
             >
-              <RotateCcw className="h-3 w-3" />
-              New question
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSubmit}
-              disabled={!answer.trim() || isPending}
-              className="gap-1.5"
-            >
-              <Send className="h-3.5 w-3.5" />
-              {isPending ? "Evaluating…" : "Submit"}
-            </Button>
+              {voiceState === "listening" ? (
+                <><MicOff className="h-3 w-3" /> Stop recording</>
+              ) : (
+                <><Mic className="h-3 w-3" /> Speak answer</>
+              )}
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                className="text-xs gap-1"
+              >
+                <RotateCcw className="h-3 w-3" />
+                New question
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSubmit}
+                disabled={!answer.trim() || isPending || voiceState !== "idle"}
+                className="gap-1.5"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {isPending ? "Evaluating…" : "Submit"}
+              </Button>
+            </div>
           </div>
         </>
       )}
@@ -175,7 +346,7 @@ function OralSession({ lectureId, concept }: { lectureId: string; concept: Conce
                             <span className="font-mono text-lens-primary mr-2">
                               {Math.floor(c.ts / 60)}:{String(Math.floor(c.ts % 60)).padStart(2, "0")}
                             </span>
-                            <span className="italic">"{c.quote}"</span>
+                            <span className="italic">&ldquo;{c.quote}&rdquo;</span>
                           </div>
                         ))}
                       </div>
@@ -188,7 +359,7 @@ function OralSession({ lectureId, concept }: { lectureId: string; concept: Conce
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setAnswer(""); refetch(); }}
+              onClick={handleReset}
               className="w-full gap-1.5"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -200,6 +371,8 @@ function OralSession({ lectureId, concept }: { lectureId: string; concept: Conce
     </div>
   );
 }
+
+// ── OralExamMode (concept selector) ───────────────────────────────────────────
 
 export function OralExamMode({ lectureId, className }: OralExamModeProps) {
   const { data: learnData, isLoading } = useQuery({
@@ -229,7 +402,6 @@ export function OralExamMode({ lectureId, className }: OralExamModeProps) {
 
   return (
     <div className={cn("space-y-4", className)}>
-      {/* Concept selector */}
       {!selectedConcept ? (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">

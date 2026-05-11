@@ -7,6 +7,7 @@ import {
   Youtube, GitBranch, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LogoIcon } from "@/components/shared/LogoIcon";
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -90,9 +91,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-40 border-b border-lens-glass-border glass px-6 py-3">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-lens-gradient text-white text-sm font-bold shadow-sm">
-              L
-            </div>
+            <LogoIcon size="sm" className="h-8 w-8" />
             <span className="font-semibold text-foreground">LectureLens</span>
           </div>
           <Link href="/dashboard" aria-label="Open app dashboard">
@@ -284,8 +283,8 @@ export default function LandingPage() {
           transition={{ duration: 0.5 }}
           className="mx-auto max-w-xl flex flex-col gap-5"
         >
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-lens-gradient text-white text-2xl font-bold shadow-lg shadow-lens-purple/25 animate-float">
-            L
+          <div className="mx-auto flex h-16 w-16 items-center justify-center">
+            <LogoIcon size="lg" className="animate-float shadow-lg shadow-lens-purple/25" />
           </div>
           <h2 id="cta-title" className="text-3xl font-bold">Ready to study smarter?</h2>
           <p className="text-muted-foreground text-balance">

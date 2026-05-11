@@ -12,6 +12,7 @@ Flow per request:
   5. Persist to ExplanationCache.
   6. Return ExplanationResult.
 """
+import json
 import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -131,7 +132,13 @@ class ConfusionRescueAgent:
         user_prompt = _build_user_prompt(concept, style, language)
         response = await self._llm.extract_json(BREAKDOWN_SYSTEM, user_prompt)
 
-        explanation_text = str(response.get("explanation", "")).strip()
+        raw_explanation = response.get("explanation", "")
+        # Diagram style returns a JSON object; serialize it so it's stored as a
+        # JSON string and the frontend can detect + parse it.
+        if isinstance(raw_explanation, dict):
+            explanation_text = json.dumps(raw_explanation, ensure_ascii=False)
+        else:
+            explanation_text = str(raw_explanation).strip()
         source_quote = str(response.get("source_quote", "")).strip()
 
         if not explanation_text:
