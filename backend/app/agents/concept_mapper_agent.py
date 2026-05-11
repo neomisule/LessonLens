@@ -7,6 +7,7 @@ After ConceptAgent stores raw concepts, this agent:
   4. Assigns each concept to its chapter(s) and updates chapter.concept_names.
   5. Updates all Concept rows in the DB with the enriched data.
 """
+import asyncio
 import logging
 from typing import Any
 
@@ -53,11 +54,14 @@ async def _enrich_all_batch(
         return {}
 
     valid_names = {c.name.lower() for c in concepts}
-    result: dict[str, dict] = {}
 
-    for batch_start in range(0, len(concepts), _ENRICH_BATCH_SIZE):
-        batch = concepts[batch_start : batch_start + _ENRICH_BATCH_SIZE]
+    # Build all batches upfront
+    batches = [
+        concepts[i : i + _ENRICH_BATCH_SIZE]
+        for i in range(0, len(concepts), _ENRICH_BATCH_SIZE)
+    ]
 
+    async def _call_enrich_batch(batch: list) -> list:
         concepts_block = "\n".join(
             f"- {c.name} ({c.importance}): {c.definition[:120]}"
             for c in batch
@@ -66,12 +70,22 @@ async def _enrich_all_batch(
             CONCEPT_ENRICHMENT_SYSTEM,
             CONCEPT_ENRICHMENT_USER.format(concepts_block=concepts_block),
         )
+        return response.get("results", [])
 
-        results = response.get("results", [])
-        if not isinstance(results, list):
+    # Run all enrichment batches in parallel
+    batch_results = await asyncio.gather(
+        *[_call_enrich_batch(b) for b in batches],
+        return_exceptions=True,
+    )
+
+    result: dict[str, dict] = {}
+    for batch_output in batch_results:
+        if isinstance(batch_output, Exception):
+            logger.warning("[concept_mapper] Enrichment batch failed: %s", batch_output)
             continue
-
-        for entry in results:
+        if not isinstance(batch_output, list):
+            continue
+        for entry in batch_output:
             if not isinstance(entry, dict):
                 continue
             name = str(entry.get("name", "")).strip().lower()

@@ -8,14 +8,31 @@ from app.models.processing import ProcessingJob
 from app.schemas.lecture import LectureCreate, LectureUpdate
 
 
-_YT_PATTERN = re.compile(
-    r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([A-Za-z0-9_\-]{11})"
-)
+_YT_PATTERNS = [
+    # Standard: youtube.com/watch?v=ID
+    re.compile(r"(?:youtube\.com/watch\?(?:.*&)?v=)([A-Za-z0-9_\-]{11})"),
+    # Short:    youtu.be/ID
+    re.compile(r"youtu\.be/([A-Za-z0-9_\-]{11})"),
+    # Embed:    youtube.com/embed/ID
+    re.compile(r"youtube\.com/embed/([A-Za-z0-9_\-]{11})"),
+    # Google search fragment: #...vid:ID,...
+    re.compile(r"[#&,]vid:([A-Za-z0-9_\-]{11})(?:[,&]|$)"),
+    # Shorts:   youtube.com/shorts/ID
+    re.compile(r"youtube\.com/shorts/([A-Za-z0-9_\-]{11})"),
+]
 
 
 def _extract_youtube_id(url: str) -> str | None:
-    match = _YT_PATTERN.search(url)
-    return match.group(1) if match else None
+    for pattern in _YT_PATTERNS:
+        m = pattern.search(url)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _canonical_youtube_url(video_id: str) -> str:
+    """Always store a clean youtube.com URL regardless of what was pasted."""
+    return f"https://www.youtube.com/watch?v={video_id}"
 
 
 async def list_lectures(db: AsyncSession, subject_id: str) -> list[Lecture]:
@@ -34,12 +51,13 @@ async def get_lecture(db: AsyncSession, lecture_id: str) -> Lecture | None:
 
 async def add_lecture(db: AsyncSession, payload: LectureCreate) -> Lecture:
     video_id = _extract_youtube_id(payload.youtube_url)
+    clean_url = _canonical_youtube_url(video_id) if video_id else payload.youtube_url
     thumbnail = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg" if video_id else None
 
     lecture = Lecture(
         subject_id=payload.subject_id,
-        youtube_url=payload.youtube_url,
-        youtube_id=video_id or "",           # model field is youtube_id
+        youtube_url=clean_url,               # always store clean URL
+        youtube_id=video_id or "",
         title=payload.title or f"Lecture – {video_id or 'unknown'}",
         thumbnail_url=thumbnail,
         processing_status="pending",

@@ -75,11 +75,11 @@ class SegmentationAgent(BaseAgent):
                 "error": "No chunks produced from transcript",
             }
 
-        # ── 3. Generate embeddings (batch) ────────────────────────────────────
+        # ── 3. Generate embeddings (batch, OpenAI only) ───────────────────────
         embeddings: list[list[float]] | None = None
-        if self._settings.openai_api_key or self._settings.anthropic_api_key:
+        from app.vector.store import embeddings_available, create_embeddings_batch
+        if embeddings_available():
             try:
-                from app.vector.store import create_embeddings_batch
                 chunk_texts = [c.text for c in chunks]
                 embeddings = await create_embeddings_batch(chunk_texts)
                 logger.info("[segmentation] Got %d embeddings", len(embeddings))
@@ -87,7 +87,7 @@ class SegmentationAgent(BaseAgent):
                 logger.warning("[segmentation] Embedding failed, using fixed segmentation: %s", exc)
                 embeddings = None
         else:
-            logger.info("[segmentation] No embedding API key configured; using fixed-window segmentation")
+            logger.info("[segmentation] No OpenAI key — using fixed-window segmentation (fast)")
 
         # ── 4. Topic boundary detection ───────────────────────────────────────
         if embeddings and len(embeddings) == len(chunks):

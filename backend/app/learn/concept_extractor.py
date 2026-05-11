@@ -1,11 +1,13 @@
-"""Concept extraction from semantic segments — batched for efficiency.
+"""Concept extraction from semantic segments — batched + parallel.
 
-Groups BATCH_SIZE segments into a single LLM call, reducing API round-trips
-from N_segments to ceil(N_segments / BATCH_SIZE).
+Groups BATCH_SIZE segments into a single LLM call, then runs all batches
+concurrently with asyncio.gather.
 
-  Old: 12 segments → 12 LLM calls
-  New: 12 segments, BATCH_SIZE=4 → 3 LLM calls  (4x reduction)
+  Old: 12 segments → 12 sequential LLM calls
+  Mid: 12 segments, BATCH_SIZE=4 → 3 sequential calls
+  New: 12 segments, BATCH_SIZE=4 → 3 parallel calls  (all at once)
 """
+import asyncio
 import logging
 from collections import defaultdict
 
@@ -59,24 +61,38 @@ async def extract_concepts_from_segments(
         s.get("sequence_index", i): s for i, s in enumerate(segments)
     }
 
-    raw: list[ExtractedConcept] = []
+    # Build all batches upfront
+    batches = [
+        segments[i : i + BATCH_SIZE]
+        for i in range(0, len(segments), BATCH_SIZE)
+    ]
 
-    for batch_start in range(0, len(segments), BATCH_SIZE):
-        batch = segments[batch_start : batch_start + BATCH_SIZE]
+    async def _call_batch(batch: list[dict]) -> tuple[list[dict], list[dict]]:
+        """Returns (batch, results_list) — keeps batch reference for fallback."""
         user_prompt = _format_batch_prompt(batch)
-
         response = await llm.extract_json(CONCEPT_EXTRACTION_SYSTEM, user_prompt)
         results = response.get("results")
-
-        # Graceful fallback: if model returned legacy single-segment format
         if not isinstance(results, list):
             legacy = response.get("concepts", [])
             if isinstance(legacy, list):
                 results = [{"segment_index": batch[0].get("sequence_index", 0), "concepts": legacy}]
             else:
-                logger.warning("[concept_extractor] Unexpected LLM response for batch starting at %d", batch_start)
-                continue
+                results = []
+        return batch, results
 
+    # ── Run ALL batches in parallel ───────────────────────────────────────────
+    batch_outputs = await asyncio.gather(
+        *[_call_batch(b) for b in batches],
+        return_exceptions=True,
+    )
+
+    raw: list[ExtractedConcept] = []
+
+    for output in batch_outputs:
+        if isinstance(output, Exception):
+            logger.warning("[concept_extractor] Batch failed: %s", output)
+            continue
+        batch, results = output
         for item in results:
             if not isinstance(item, dict):
                 continue
@@ -109,9 +125,9 @@ async def extract_concepts_from_segments(
 
     extracted = _deduplicate(raw)
     logger.info(
-        "[concept_extractor] %d segments → %d LLM calls → %d unique concepts",
+        "[concept_extractor] %d segments → %d parallel LLM calls → %d unique concepts",
         len(segments),
-        -(-len(segments) // BATCH_SIZE),  # ceil division
+        len(batches),
         len(extracted),
     )
     return extracted

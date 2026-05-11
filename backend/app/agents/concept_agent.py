@@ -18,7 +18,7 @@ from app.learn.llm_client import LLMClient
 from app.learn.concept_extractor import extract_concepts_from_segments
 from app.learn.schemas import ExtractedConcept
 from app.config import get_settings
-from app.vector.store import create_embeddings_batch
+from app.vector.store import create_embeddings_batch, embeddings_available
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ async def _embed_concepts_batch(names: list[str], settings) -> list[list[float] 
     Falls back to a list of None on any failure so the rest of the pipeline
     continues without embeddings (search will be unavailable but everything else works).
     """
-    if not names or not (settings.openai_api_key or settings.anthropic_api_key):
+    if not names or not embeddings_available():
         return [None] * len(names)
     try:
         vectors = await create_embeddings_batch(names)

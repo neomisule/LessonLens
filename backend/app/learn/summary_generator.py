@@ -3,6 +3,7 @@
 Each summary is grounded in the actual transcript — timestamps in sections
 always come from the semantic segments provided as context.
 """
+import asyncio
 import logging
 from app.learn.schemas import GeneratedSummary, SummarySection, ExtractedConcept
 from app.learn.llm_client import LLMClient
@@ -96,23 +97,33 @@ async def generate_all_summaries(
 
     duration_str = _format_duration(total_duration)
     title = lecture_title or "Lecture"
+
+    valid_levels = [l for l in levels if l in ("brief", "standard", "detailed")]
+    if not valid_levels:
+        return []
+
+    # Run all requested summary levels in parallel — they are independent
+    raw_results = await asyncio.gather(
+        *[
+            _generate_one(
+                level=level,
+                segments=segments,
+                concepts=concepts,
+                title=title,
+                duration_str=duration_str,
+                llm=llm,
+            )
+            for level in valid_levels
+        ],
+        return_exceptions=True,
+    )
+
     results: list[GeneratedSummary] = []
-
-    for level in levels:
-        if level not in ("brief", "standard", "detailed"):
-            logger.warning("[summary_generator] Unknown level '%s' — skipping", level)
-            continue
-        summary = await _generate_one(
-            level=level,
-            segments=segments,
-            concepts=concepts,
-            title=title,
-            duration_str=duration_str,
-            llm=llm,
-        )
-        if summary:
-            results.append(summary)
-
+    for level, r in zip(valid_levels, raw_results):
+        if isinstance(r, Exception):
+            logger.warning("[summary_generator] Level '%s' failed: %s", level, r)
+        elif r:
+            results.append(r)
     return results
 
 

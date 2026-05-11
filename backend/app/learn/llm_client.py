@@ -1,31 +1,48 @@
-"""Thin async LLM wrapper for the Learn Mode pipeline.
-
-Uses Anthropic Claude by default; falls back to OpenAI only if Anthropic is unavailable
-or not configured. All methods return parsed Python dicts/lists — callers never
-deal with raw text.
-"""
+"""Thin async LLM wrapper — calls Anthropic SDK directly (no LangChain overhead)."""
 import json
 import logging
 import re
 from typing import Any
 
+import anthropic
+
 logger = logging.getLogger(__name__)
 
-_HAIKU_MODEL   = "claude-3-5-haiku-20241022"   # fast/cheap — bulk extraction
-_SONNET_MODEL  = "claude-3-5-sonnet-20241022"  # quality — summaries judges read
-_DEFAULT_MODEL = _HAIKU_MODEL
+_HAIKU_MODEL    = "claude-3-5-haiku-20241022"   # fast/cheap — bulk extraction
+_SONNET_MODEL   = "claude-3-5-sonnet-20241022"  # quality — summaries judges read
+_DEFAULT_MODEL  = _HAIKU_MODEL
 _FALLBACK_MODEL = "gpt-4o-mini"
+
+# Module-level client caches — created once, reused across all calls
+_anthropic_client: anthropic.AsyncAnthropic | None = None
+_anthropic_key_used: str = ""
+_openai_client: Any = None
+_openai_key_used: str = ""
+
+
+def _get_anthropic_client(api_key: str) -> anthropic.AsyncAnthropic:
+    global _anthropic_client, _anthropic_key_used
+    if _anthropic_client is None or _anthropic_key_used != api_key:
+        # 45s timeout per call — prevents a single stalled call from blocking
+        # the entire pipeline for the SDK's default 600s
+        _anthropic_client = anthropic.AsyncAnthropic(
+            api_key=api_key,
+            timeout=45.0,
+        )
+        _anthropic_key_used = api_key
+    return _anthropic_client
+
+
+def _get_openai_client(api_key: str) -> Any:
+    global _openai_client, _openai_key_used
+    if _openai_client is None or _openai_key_used != api_key:
+        from openai import AsyncOpenAI
+        _openai_client = AsyncOpenAI(api_key=api_key)
+        _openai_key_used = api_key
+    return _openai_client
 
 
 class LLMClient:
-    """
-    Async LLM client that tries Anthropic first, OpenAI second.
-
-    Usage::
-        client = LLMClient(anthropic_key="sk-ant-...", openai_key="sk-...")
-        result = await client.extract_json(system_prompt, user_prompt)
-    """
-
     def __init__(
         self,
         anthropic_key: str = "",
@@ -33,85 +50,62 @@ class LLMClient:
         model: str = _DEFAULT_MODEL,
     ) -> None:
         self._anthropic_key = anthropic_key
-        self._openai_key = openai_key
-        self._model = model
-        self._available = bool(anthropic_key or openai_key)
+        self._openai_key    = openai_key
+        self._model         = model
+        self._available     = bool(anthropic_key or openai_key)
 
     @property
     def available(self) -> bool:
         return self._available
 
     async def extract_json(self, system: str, user: str) -> dict[str, Any]:
-        """
-        Send a system + user prompt and parse the JSON response.
-
-        Returns an empty dict if no LLM is configured or on any error.
-        Never raises — callers should check the returned dict for expected keys.
-        """
         if not self._available:
-            logger.debug("LLMClient: no API key configured, returning empty result")
             return {}
-
         if self._anthropic_key:
             return await self._call_anthropic(system, user)
         return await self._call_openai(system, user)
 
     async def _call_anthropic(self, system: str, user: str) -> dict[str, Any]:
         try:
-            from langchain_anthropic import ChatAnthropic
-            from langchain_core.messages import HumanMessage, SystemMessage
-
-            llm = ChatAnthropic(
+            client = _get_anthropic_client(self._anthropic_key)
+            msg = await client.messages.create(
                 model=self._model,
-                api_key=self._anthropic_key,
                 max_tokens=4096,
-                temperature=0.05,       # near-zero for factual extraction
+                temperature=0.05,
+                system=system,
+                messages=[{"role": "user", "content": user}],
             )
-            messages = [SystemMessage(content=system), HumanMessage(content=user)]
-            response = await llm.ainvoke(messages)
-            return self._parse_json(str(response.content))
-
-        except ImportError:
-            logger.warning("langchain_anthropic not installed; trying openai")
-            if self._openai_key:
-                return await self._call_openai(system, user)
-            return {}
+            return self._parse_json(msg.content[0].text)
         except Exception as exc:
             logger.error("Anthropic call failed: %s", exc)
             return {}
 
     async def _call_openai(self, system: str, user: str) -> dict[str, Any]:
         try:
-            from langchain_openai import ChatOpenAI
-            from langchain_core.messages import HumanMessage, SystemMessage
-
-            llm = ChatOpenAI(
+            client = _get_openai_client(self._openai_key)
+            resp = await client.chat.completions.create(
                 model=_FALLBACK_MODEL,
-                api_key=self._openai_key,
                 max_tokens=4096,
                 temperature=0.05,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user",   "content": user},
+                ],
             )
-            messages = [SystemMessage(content=system), HumanMessage(content=user)]
-            response = await llm.ainvoke(messages)
-            return self._parse_json(str(response.content))
-
+            return self._parse_json(resp.choices[0].message.content or "")
         except Exception as exc:
             logger.error("OpenAI call failed: %s", exc)
             return {}
 
     @staticmethod
     def _parse_json(text: str) -> dict[str, Any]:
-        """Extract JSON from LLM response, handling ```json ... ``` wrappers."""
-        # Try ```json block first
         match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
         if match:
             text = match.group(1)
         else:
-            # Try plain ``` block
             match = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
             if match:
                 text = match.group(1)
-
         try:
             result = json.loads(text.strip())
             return result if isinstance(result, dict) else {}

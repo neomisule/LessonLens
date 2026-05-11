@@ -14,6 +14,7 @@ Deep-path mode (fast_path=False, default):
   - Quiz questions for core + supporting
   - Overwrites fast-path flashcards with complete set
 """
+import asyncio
 import logging
 from typing import Any
 
@@ -374,19 +375,38 @@ class ExamCoachAgent(BaseAgent):
             if (n := _QUIZ_BY_IMPORTANCE.get(c.importance, 0)) > 0
         ]
 
-        # ── Batch flashcard generation ────────────────────────────────────────
-        all_flashcard_map: dict[str, list[GeneratedFlashcard]] = {}
-        if llm.available:
-            for batch in _chunks(flash_pairs, _BATCH_SIZE):
-                result = await _batch_generate_flashcards(batch, llm)
-                all_flashcard_map.update(result)
+        # ── Batch flashcard + quiz generation — ALL batches run in parallel ────
+        async def _run_all_flash_batches() -> dict[str, list[GeneratedFlashcard]]:
+            if not llm.available:
+                return {}
+            results = await asyncio.gather(
+                *[_batch_generate_flashcards(list(b), llm) for b in _chunks(flash_pairs, _BATCH_SIZE)],
+                return_exceptions=True,
+            )
+            merged: dict[str, list[GeneratedFlashcard]] = {}
+            for r in results:
+                if isinstance(r, dict):
+                    merged.update(r)
+            return merged
 
-        # ── Batch quiz generation ─────────────────────────────────────────────
-        all_quiz_map: dict[str, list[GeneratedQuizQuestion]] = {}
-        if llm.available and quiz_pairs:
-            for batch in _chunks(quiz_pairs, _BATCH_SIZE):
-                result = await _batch_generate_quiz(batch, llm)
-                all_quiz_map.update(result)
+        async def _run_all_quiz_batches() -> dict[str, list[GeneratedQuizQuestion]]:
+            if not llm.available or not quiz_pairs:
+                return {}
+            results = await asyncio.gather(
+                *[_batch_generate_quiz(list(b), llm) for b in _chunks(quiz_pairs, _BATCH_SIZE)],
+                return_exceptions=True,
+            )
+            merged: dict[str, list[GeneratedQuizQuestion]] = {}
+            for r in results:
+                if isinstance(r, dict):
+                    merged.update(r)
+            return merged
+
+        # Flash and quiz run concurrently; within each, all batches run concurrently
+        all_flashcard_map, all_quiz_map = await asyncio.gather(
+            _run_all_flash_batches(),
+            _run_all_quiz_batches(),
+        )
 
         # ── Persist flashcards ────────────────────────────────────────────────
         total_cards = 0
