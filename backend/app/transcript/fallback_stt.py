@@ -64,6 +64,8 @@ async def download_audio(youtube_url: str, output_dir: str) -> str:
         # NO postprocessors — skip ffmpeg entirely, saves 30-90s per video
         "quiet": True,
         "no_warnings": True,
+        # Help bypass bot detection on datacenter IPs
+        "extractor_args": {"youtube": {"player_client": ["web"]}},
     }
 
     # Run yt-dlp in a thread so we don't block the event loop
