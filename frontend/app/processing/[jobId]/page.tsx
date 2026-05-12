@@ -84,9 +84,8 @@ export default function ProcessingPage() {
 
   const showTranscriptCard =
     job &&
-    (job.steps_completed.includes("downloading") ||
-      job.current_step === "transcribing" ||
-      job.steps_completed.includes("transcribing"));
+    (job.steps_completed.includes("transcript_extracting") ||
+      job.current_step === "transcript_extracting");
 
   const progressPct = job
     ? Math.round((job.steps_completed.length / job.steps_total) * 100)

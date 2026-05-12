@@ -8,14 +8,16 @@ export type ProcessingStatus =
   | "complete"
   | "completed"
   | "failed"
-  // Legacy step keys used by the processing timeline UI
-  | "downloading"
-  | "transcribing"
+  // Pipeline step keys (match backend steps_completed)
+  | "transcript_extracting"
   | "segmenting"
   | "extracting_concepts"
-  | "generating_flashcards"
-  | "generating_summary"
-  | "building_mindmap";
+  | "chapters_brief_summary"
+  | "initial_flashcards"
+  | "concept_enrichment"
+  | "full_flashcards_quiz"
+  | "deep_summaries"
+  | "mindmap";
 
 export type LectureMode = "learn" | "break_it_down" | "revise" | "search" | "mind_map";
 
@@ -62,11 +64,11 @@ export interface ProcessingStep {
 }
 
 export const PROCESSING_STEPS: ProcessingStep[] = [
-  { key: "downloading",          label: "Fetching Lecture",     description: "Retrieving video metadata from YouTube" },
-  { key: "transcribing",         label: "Transcribing Audio",   description: "Converting speech to text with timestamps" },
-  { key: "segmenting",           label: "Segmenting Content",   description: "Splitting transcript into semantic chunks" },
-  { key: "extracting_concepts",  label: "Extracting Concepts",  description: "Identifying key ideas and terminology" },
-  { key: "generating_flashcards",label: "Building Flashcards",  description: "Creating active recall cards" },
-  { key: "generating_summary",   label: "Writing Summary",      description: "Composing structured lecture notes" },
-  { key: "building_mindmap",     label: "Building Mind Map",    description: "Mapping concept relationships" },
+  { key: "transcript_extracting",  label: "Fetching Lecture",     description: "Retrieving video and extracting transcript" },
+  { key: "segmenting",            label: "Segmenting Content",   description: "Splitting transcript into semantic chunks" },
+  { key: "extracting_concepts",   label: "Extracting Concepts",  description: "Identifying key ideas and terminology" },
+  { key: "chapters_brief_summary", label: "Building Summary",    description: "Creating chapters and brief summary" },
+  { key: "initial_flashcards",    label: "Building Flashcards",  description: "Creating active recall cards" },
+  { key: "deep_summaries",        label: "Deep Analysis",        description: "Generating detailed study materials" },
+  { key: "mindmap",               label: "Building Mind Map",    description: "Mapping concept relationships" },
 ];
