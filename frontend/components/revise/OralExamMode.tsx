@@ -70,7 +70,8 @@ function OralSession({ lectureId, concept }: { lectureId: string; concept: Conce
   const [voiceState,   setVoiceState]   = useState<VoiceState>("idle");
   const [voiceError,   setVoiceError]   = useState<string | null>(null);
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
   const cancelTtsRef   = useRef<(() => void) | null>(null);
 
   // ── Listen (TTS) ────────────────────────────────────────────────────────────
@@ -105,20 +106,19 @@ function OralSession({ lectureId, concept }: { lectureId: string; concept: Conce
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
-    const SpeechRecognitionCtor: (new () => SpeechRecognition) | undefined =
+    const SpeechRecognitionCtor: (new () => any) | undefined =
       w.SpeechRecognition ?? w.webkitSpeechRecognition;
 
     if (!SpeechRecognitionCtor) return;
-    const SpeechRecognition = SpeechRecognitionCtor;
 
-    const rec = new SpeechRecognition() as SpeechRecognition;
+    const rec = new SpeechRecognitionCtor();
     rec.continuous    = true;
     rec.interimResults = false;
     rec.lang          = "en-US";
 
-    rec.onresult = (event) => {
+    rec.onresult = (event: any) => {
       const transcript = Array.from(event.results)
-        .map((r) => r[0].transcript)
+        .map((r: any) => r[0].transcript)
         .join(" ")
         .trim();
       setAnswer((prev) => (prev ? `${prev} ${transcript}` : transcript));
@@ -129,7 +129,7 @@ function OralSession({ lectureId, concept }: { lectureId: string; concept: Conce
       recognitionRef.current = null;
     };
 
-    rec.onerror = (event) => {
+    rec.onerror = (event: any) => {
       setVoiceState("idle");
       recognitionRef.current = null;
       if (event.error !== "aborted") {

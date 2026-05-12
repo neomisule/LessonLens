@@ -197,8 +197,8 @@ export default function DashboardPage() {
   const { activeSubjectId }  = useAppStore();
   const { data: lecturesData, isLoading: lecturesLoading } = useLectures(activeSubjectId ?? undefined);
 
-  const subjects = subjectsData?.items ?? [];
-  const lectures = lecturesData?.items ?? [];
+  const subjects = subjectsData ?? [];
+  const lectures = lecturesData ?? [];
   const isLoading = subjectsLoading || lecturesLoading;
 
   // ── True empty — no subjects yet ──────────────────────────────────────────

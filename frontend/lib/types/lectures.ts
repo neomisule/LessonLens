@@ -1,14 +1,21 @@
 export type ProcessingStatus =
   | "queued"
+  | "processing"
+  | "transcript_ready"
+  | "fast_materials_generating"
+  | "dashboard_ready"
+  | "deep_materials_generating"
+  | "complete"
+  | "completed"
+  | "failed"
+  // Legacy step keys used by the processing timeline UI
   | "downloading"
   | "transcribing"
   | "segmenting"
   | "extracting_concepts"
   | "generating_flashcards"
   | "generating_summary"
-  | "building_mindmap"
-  | "completed"
-  | "failed";
+  | "building_mindmap";
 
 export type LectureMode = "learn" | "break_it_down" | "revise" | "search" | "mind_map";
 

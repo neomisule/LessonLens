@@ -25,10 +25,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://your-backend-url.onrender.com/api/:path*"
+      "destination": "https://lecturelens-backend-production-c804.up.railway.app/api/:path*"
     }
-  ],
-  "env": {
-    "NEXT_PUBLIC_API_URL": "@lecturelens_api_url"
-  }
+  ]
 }
