@@ -1,6 +1,8 @@
 import type { ApiError } from "@/lib/types/api";
 
-const BASE_URL = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1`;
+// In production (Vercel): empty string → relative "/api/v1" → proxied to Railway by next.config rewrites
+// In local dev: set NEXT_PUBLIC_API_URL=http://localhost:8000 in .env.local
+const BASE_URL = `${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/v1`;
 
 class ApiClientError extends Error {
   constructor(
