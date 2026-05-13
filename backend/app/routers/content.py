@@ -26,7 +26,9 @@ router = APIRouter(prefix="/content", tags=["content"])
 async def get_learn_mode(lecture_id: str, db: AsyncSession = Depends(get_db)):
     """Return all Learn Mode data: summaries, chapters, and enriched concepts."""
     data = await svc.get_learn_mode(db, lecture_id)
-    if not data.summaries and not data.chapters and not data.concepts:
+    # Only 404 when nothing at all is ready — chapters always have a heuristic
+    # fallback so this means the pipeline hasn't run yet (not a partial failure).
+    if not data.chapters:
         raise HTTPException(status_code=404, detail="Learn Mode content not yet generated")
     return data
 

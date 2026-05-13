@@ -13,36 +13,18 @@ _SONNET_MODEL   = "claude-3-5-sonnet-20241022"  # quality — summaries judges r
 _DEFAULT_MODEL  = _HAIKU_MODEL
 _FALLBACK_MODEL = "gpt-4o-mini"
 
-# Module-level client caches — created once, reused across all calls
-_anthropic_client: anthropic.AsyncAnthropic | None = None
-_anthropic_key_used: str = ""
-_openai_client: Any = None
-_openai_key_used: str = ""
-
-
-def _get_anthropic_client(api_key: str) -> anthropic.AsyncAnthropic:
-    global _anthropic_client, _anthropic_key_used
-    if _anthropic_client is None or _anthropic_key_used != api_key:
-        # 45s timeout per call — prevents a single stalled call from blocking
-        # the entire pipeline for the SDK's default 600s
-        _anthropic_client = anthropic.AsyncAnthropic(
-            api_key=api_key,
-            timeout=45.0,
-        )
-        _anthropic_key_used = api_key
-    return _anthropic_client
-
-
-def _get_openai_client(api_key: str) -> Any:
-    global _openai_client, _openai_key_used
-    if _openai_client is None or _openai_key_used != api_key:
-        from openai import AsyncOpenAI
-        _openai_client = AsyncOpenAI(api_key=api_key)
-        _openai_key_used = api_key
-    return _openai_client
-
 
 class LLMClient:
+    """
+    Async LLM wrapper with per-instance clients.
+
+    Clients are created in __init__ (not cached at module level) so that each
+    LLMClient instance — created fresh inside asyncio.run() for every Celery
+    task — owns an httpx connection pool bound to the correct event loop.
+    Module-level caching caused "Future attached to different event loop" errors
+    on all LLM calls after the first Celery task completed.
+    """
+
     def __init__(
         self,
         anthropic_key: str = "",
@@ -53,6 +35,12 @@ class LLMClient:
         self._openai_key    = openai_key
         self._model         = model
         self._available     = bool(anthropic_key or openai_key)
+        # Create fresh client instances bound to the current event loop.
+        self._anthropic_client: anthropic.AsyncAnthropic | None = (
+            anthropic.AsyncAnthropic(api_key=anthropic_key, timeout=45.0)
+            if anthropic_key else None
+        )
+        self._openai_client: Any = None  # lazy — only instantiated if used
 
     @property
     def available(self) -> bool:
@@ -67,8 +55,8 @@ class LLMClient:
 
     async def _call_anthropic(self, system: str, user: str) -> dict[str, Any]:
         try:
-            client = _get_anthropic_client(self._anthropic_key)
-            msg = await client.messages.create(
+            assert self._anthropic_client is not None
+            msg = await self._anthropic_client.messages.create(
                 model=self._model,
                 max_tokens=4096,
                 temperature=0.05,
@@ -82,8 +70,10 @@ class LLMClient:
 
     async def _call_openai(self, system: str, user: str) -> dict[str, Any]:
         try:
-            client = _get_openai_client(self._openai_key)
-            resp = await client.chat.completions.create(
+            if self._openai_client is None:
+                from openai import AsyncOpenAI
+                self._openai_client = AsyncOpenAI(api_key=self._openai_key)
+            resp = await self._openai_client.chat.completions.create(
                 model=_FALLBACK_MODEL,
                 max_tokens=4096,
                 temperature=0.05,

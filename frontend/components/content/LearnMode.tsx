@@ -76,18 +76,29 @@ interface LearnModeProps {
 }
 
 export function LearnMode({ lectureId }: LearnModeProps) {
-  const [activeTab, setActiveTab] = useState<LearnTab>("summary");
+  const [activeTab, setActiveTab] = useState<LearnTab | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["learn-mode", lectureId],
     queryFn: () => contentApi.getLearnMode(lectureId),
-    staleTime: 5 * 60 * 1000, // 5 min
-    retry: 1,
+    staleTime: 60 * 1000, // 1 min — fresh enough that new content shows quickly
+    retry: 2,
   });
 
   const summaries = data?.summaries ?? [];
   const chapters = data?.chapters ?? [];
   const concepts = data?.concepts ?? [];
+
+  // Auto-select first tab with content once data loads.
+  // Default to "summary" only if summaries exist; otherwise fall back to
+  // "timeline" (chapters always have a heuristic fallback) then "concepts".
+  const resolvedTab: LearnTab = (() => {
+    if (activeTab) return activeTab;
+    if (summaries.length > 0) return "summary";
+    if (chapters.length > 0)  return "timeline";
+    if (concepts.length > 0)  return "concepts";
+    return "summary";
+  })();
 
   // Find standard or detailed summary for use in outline
   const outlineSummary =
@@ -111,7 +122,7 @@ export function LearnMode({ lectureId }: LearnModeProps) {
             onClick={() => setActiveTab(tab.id)}
             className={cn(
               "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-all",
-              activeTab === tab.id
+              resolvedTab === tab.id
                 ? "bg-lens-purple/20 text-lens-purple-light shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
@@ -126,20 +137,20 @@ export function LearnMode({ lectureId }: LearnModeProps) {
       {isLoading ? (
         <LoadingState />
       ) : error ? (
-        <EmptyState message="Learn Mode content not yet generated. Processing may still be running." />
+        <EmptyState message="Content could not be loaded. The lecture may still be processing." />
       ) : (
         <AnimatePresence mode="wait">
           <motion.div
-            key={activeTab}
+            key={resolvedTab}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.18 }}
           >
-            {activeTab === "summary" && (
+            {resolvedTab === "summary" && (
               <SummaryPanel summaries={summaries} lectureId={lectureId} />
             )}
-            {activeTab === "outline" && (
+            {resolvedTab === "outline" && (
               <LectureOutline
                 chapters={chapters}
                 summary={outlineSummary}
@@ -147,14 +158,14 @@ export function LearnMode({ lectureId }: LearnModeProps) {
                 lectureId={lectureId}
               />
             )}
-            {activeTab === "timeline" && (
+            {resolvedTab === "timeline" && (
               <ChapterTimeline
                 chapters={chapters}
                 lectureId={lectureId}
                 totalDuration={totalDuration}
               />
             )}
-            {activeTab === "concepts" && (
+            {resolvedTab === "concepts" && (
               <ConceptsList concepts={concepts} lectureId={lectureId} />
             )}
           </motion.div>
