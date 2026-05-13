@@ -88,6 +88,82 @@ async def download_audio(youtube_url: str, output_dir: str) -> str:
         raise RuntimeError(f"Audio download timed out after 5 minutes for {youtube_url}")
 
 
+async def download_subtitles_ytdlp(youtube_url: str) -> list[RawSegment] | None:
+    """
+    Download subtitle/caption files via yt-dlp — NO audio download, NO API key.
+    Takes ~2-5 seconds vs 3-10 minutes for audio Whisper.
+    Works for many videos where youtube_transcript_api fails (bot detection etc).
+    """
+    if not _YT_DLP_AVAILABLE:
+        return None
+
+    import tempfile
+    import glob as _glob
+    import re
+
+    def _download_subs(tmpdir: str) -> list[str]:
+        ydl_opts = {
+            "skip_download": True,       # no video/audio
+            "writesubtitles": True,      # manual subs
+            "writeautomaticsub": True,   # auto-generated subs
+            "subtitleslangs": ["en", "en-US", "en-GB", "en-orig"],
+            "subtitlesformat": "vtt",
+            "outtmpl": os.path.join(tmpdir, "video.%(ext)s"),
+            "quiet": True,
+            "no_warnings": True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([youtube_url])
+        return _glob.glob(os.path.join(tmpdir, "*.vtt"))
+
+    def _vtt_time(t: str) -> float:
+        parts = t.replace(",", ".").split(":")
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        return int(parts[0]) * 60 + float(parts[1])
+
+    def _parse_vtt(path: str) -> list[RawSegment]:
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+        segs: list[RawSegment] = []
+        seen: set[str] = set()
+        pattern = re.compile(
+            r"(\d{2}:\d{2}[\d:,.]+)\s*-->\s*(\d{2}:\d{2}[\d:,.]+)[^\n]*\n((?:.+\n?)+?)(?=\n\n|\Z)",
+            re.MULTILINE,
+        )
+        for m in pattern.finditer(content):
+            start_s, end_s, raw_text = m.group(1), m.group(2), m.group(3)
+            text = re.sub(r"<[^>]+>", "", raw_text).strip()
+            text = re.sub(r"\n+", " ", text).strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            start = _vtt_time(start_s)
+            end = _vtt_time(end_s)
+            if end > start:
+                segs.append(RawSegment(text=text, start=start,
+                                       duration=end - start, confidence=0.85))
+        return segs
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="ll_subs_") as tmpdir:
+            loop = asyncio.get_running_loop()
+            vtt_files = await asyncio.wait_for(
+                loop.run_in_executor(None, _download_subs, tmpdir),
+                timeout=30,
+            )
+            if not vtt_files:
+                logger.info("[fallback_stt] yt-dlp: no subtitle files found")
+                return None
+            segs = _parse_vtt(vtt_files[0])
+            if segs:
+                logger.info("[fallback_stt] yt-dlp subtitles: %d segments", len(segs))
+            return segs or None
+    except Exception as exc:
+        logger.warning("[fallback_stt] yt-dlp subtitle download failed: %s", exc)
+        return None
+
+
 async def transcribe_with_groq(audio_path: str, api_key: str) -> list[RawSegment]:
     """Transcribe using Groq Whisper — ~10-20x faster than OpenAI Whisper."""
     if not _GROQ_AVAILABLE:

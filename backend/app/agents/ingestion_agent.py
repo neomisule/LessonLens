@@ -85,13 +85,27 @@ class IngestionAgent:
         else:
             quality = None
 
-        # ── 3. Whisper fallback if needed ─────────────────────────────────────
+        # ── 3. Fallback chain (only if captions missing/poor) ─────────────────
         if quality is None or quality.is_poor:
             logger.info(
-                "[ingestion] Quality is %s, attempting Whisper fallback for %s",
+                "[ingestion] Quality is %s for %s — trying fallback chain",
                 "absent" if quality is None else "poor",
                 youtube_id,
             )
+
+            # Fast fallback: yt-dlp subtitle download (~3s, no API key needed)
+            from app.transcript.fallback_stt import download_subtitles_ytdlp
+            ytdlp_segs = await download_subtitles_ytdlp(youtube_url)
+            if ytdlp_segs:
+                method = "ytdlp_subtitles"
+                segments = merge_short_segments(normalize_segments(ytdlp_segs))
+                total_dur = ytdlp_segs[-1].start + ytdlp_segs[-1].duration
+                quality = score_quality(segments, total_dur, method=method)
+                quality.is_poor = False
+                logger.info("[ingestion] yt-dlp subtitles succeeded: %d segments", len(segments))
+
+        if quality is None or quality.is_poor:
+            # Slow fallback: full audio download + Whisper (needs GROQ_API_KEY or OPENAI_API_KEY)
             fallback_segs = await self._try_whisper_fallback(youtube_url)
 
             if fallback_segs:
@@ -99,7 +113,7 @@ class IngestionAgent:
                 segments = merge_short_segments(normalize_segments(fallback_segs))
                 total_dur = fallback_segs[-1].start + fallback_segs[-1].duration if fallback_segs else 0.0
                 quality = score_quality(segments, total_dur, method=method)
-                quality.is_poor = False  # Whisper is our last resort; accept what we have
+                quality.is_poor = False
 
         # ── 4. Validate we have something ─────────────────────────────────────
         if not segments:

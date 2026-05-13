@@ -47,40 +47,82 @@ async def fetch_video_metadata(video_id: str) -> VideoMetadata:
         )
 
 
+def _parse_raw(raw: list) -> list[RawSegment]:
+    """Convert raw transcript entries (dict or object) to RawSegments."""
+    result = []
+    for entry in raw:
+        if isinstance(entry, dict):
+            text = entry.get("text", "").strip()
+            start = float(entry.get("start", 0))
+            duration = float(entry.get("duration", 0))
+        else:
+            text = getattr(entry, "text", "").strip()
+            start = float(getattr(entry, "start", 0))
+            duration = float(getattr(entry, "duration", 0))
+        if text:
+            result.append(RawSegment(text=text, start=start, duration=duration, confidence=0.85))
+    return result
+
+
 def fetch_captions_sync(video_id: str) -> list[RawSegment] | None:
     """
-    Fetch YouTube auto-generated or manual captions synchronously.
-
-    Returns a list of RawSegments, or None if captions are unavailable.
-    Prefers manual English captions, falls back to auto-generated.
+    Fetch YouTube captions with aggressive fallback strategy:
+      1. English manual captions
+      2. English auto-generated captions
+      3. Any available language (translated to English if possible)
+      4. Any available language raw (better than nothing)
     """
     if not _YT_API_AVAILABLE:
         return None
 
     try:
-        # youtube-transcript-api v1.0+ uses .fetch(video_id) directly
-        # v0.x used .list_transcripts(video_id).find_...().fetch()
-        if hasattr(YouTubeTranscriptApi, "list_transcripts"):
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        # ── New v1.0+ API (get_transcript) ───────────────────────────────────
+        if not hasattr(YouTubeTranscriptApi, "list_transcripts"):
             try:
-                transcript = transcript_list.find_manually_created_transcript(["en", "en-US", "en-GB"])
+                raw = YouTubeTranscriptApi.get_transcript(
+                    video_id, languages=["en", "en-US", "en-GB", "en-CA"]
+                )
+                return _parse_raw(raw)
             except Exception:
-                transcript = transcript_list.find_generated_transcript(["en", "en-US", "en-GB"])
-            raw = transcript.fetch()
-        else:
-            # v1.0+ API
-            raw = YouTubeTranscriptApi.get_transcript(video_id, languages=["en", "en-US", "en-GB"])
+                raw = YouTubeTranscriptApi.get_transcript(video_id)
+                return _parse_raw(raw)
 
-        return [
-            RawSegment(
-                text=entry.get("text", entry.text) if hasattr(entry, "text") else entry["text"],
-                start=float(entry.get("start", 0) if isinstance(entry, dict) else entry.start),
-                duration=float(entry.get("duration", 0) if isinstance(entry, dict) else entry.duration),
-                confidence=0.85,
+        # ── v0.x API (list_transcripts) ───────────────────────────────────────
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+
+        # Strategy 1: English manual
+        try:
+            return _parse_raw(
+                transcript_list.find_manually_created_transcript(
+                    ["en", "en-US", "en-GB", "en-CA", "en-AU"]
+                ).fetch()
             )
-            for entry in raw
-            if (entry.get("text", "").strip() if isinstance(entry, dict) else getattr(entry, "text", "").strip())
-        ]
+        except Exception:
+            pass
+
+        # Strategy 2: English auto-generated
+        try:
+            return _parse_raw(
+                transcript_list.find_generated_transcript(
+                    ["en", "en-US", "en-GB", "en-CA", "en-AU"]
+                ).fetch()
+            )
+        except Exception:
+            pass
+
+        # Strategy 3 & 4: Any language — translate to English or use raw
+        available = list(transcript_list)
+        if available:
+            t = available[0]
+            try:
+                return _parse_raw(t.translate("en").fetch())
+            except Exception:
+                try:
+                    return _parse_raw(t.fetch())
+                except Exception:
+                    pass
+
+        return None
 
     except _TRANSCRIPT_ERRORS as e:
         logger.info("YouTube captions unavailable for %s: %s", video_id, e)
