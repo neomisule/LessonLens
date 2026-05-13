@@ -26,7 +26,7 @@ interface TranscriptStatusCardProps {
 function useTranscriptDetail(job: ProcessingJob): TranscriptProgressDetail | null {
   const meta = job.progress_metadata;
   if (!meta) return null;
-  return (meta["transcribing"] as TranscriptProgressDetail) ?? null;
+  return (meta["transcript_extracting"] as TranscriptProgressDetail) ?? null;
 }
 
 function StatPill({ icon: Icon, label, value, className }: {
@@ -70,16 +70,15 @@ function ConfidenceBar({ value }: { value: number }) {
 export function TranscriptStatusCard({ job, className }: TranscriptStatusCardProps) {
   const detail = useTranscriptDetail(job);
 
-  const isTranscribingDone = job.steps_completed.includes("transcribing");
-  const isTranscribingActive = job.current_step === "transcribing";
-  const isDownloadingDone = job.steps_completed.includes("downloading");
+  const isTranscriptDone = job.steps_completed.includes("transcript_extracting");
+  const isTranscriptActive = job.current_step === "transcript_extracting";
 
-  const downloadDetail = job.progress_metadata?.["downloading"] as
+  const downloadDetail = job.progress_metadata?.["transcript_extracting"] as
     | { title?: string; channel?: string; method?: string }
     | undefined;
 
-  // Don't render if we haven't even started downloading
-  if (!isDownloadingDone && !isTranscribingActive && !isTranscribingDone) {
+  // Don't render if we haven't even started transcript extraction
+  if (!isTranscriptActive && !isTranscriptDone) {
     return null;
   }
 
@@ -95,8 +94,8 @@ export function TranscriptStatusCard({ job, className }: TranscriptStatusCardPro
           <div className="flex items-center gap-2.5">
             <div className={cn(
               "flex h-7 w-7 items-center justify-center rounded-lg",
-              isTranscribingDone ? "bg-green-500/15 text-green-400"
-                : isTranscribingActive ? "bg-lens-purple/15 text-lens-purple-light"
+              isTranscriptDone ? "bg-green-500/15 text-green-400"
+                : isTranscriptActive ? "bg-lens-purple/15 text-lens-purple-light"
                 : "bg-white/5 text-muted-foreground",
             )}>
               <FileText className="h-3.5 w-3.5" />
@@ -111,13 +110,13 @@ export function TranscriptStatusCard({ job, className }: TranscriptStatusCardPro
             </div>
           </div>
 
-          {isTranscribingDone && detail ? (
+          {isTranscriptDone && detail ? (
             <TranscriptQualityBadge
               method={detail.method ?? "youtube_captions"}
               confidenceAvg={detail.confidence_avg ?? 0.85}
               coveragePct={detail.coverage_pct ?? 100}
             />
-          ) : isTranscribingActive ? (
+          ) : isTranscriptActive ? (
             <span className="flex items-center gap-1.5 text-xs text-lens-purple-light">
               <motion.span
                 className="inline-block h-1.5 w-1.5 rounded-full bg-lens-purple-light"
@@ -131,7 +130,7 @@ export function TranscriptStatusCard({ job, className }: TranscriptStatusCardPro
 
         {/* Body — only shown after transcription completes */}
         <AnimatePresence>
-          {isTranscribingDone && detail && (
+          {isTranscriptDone && detail && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
@@ -208,7 +207,7 @@ export function TranscriptStatusCard({ job, className }: TranscriptStatusCardPro
 
         {/* Active state loading skeleton */}
         <AnimatePresence>
-          {isTranscribingActive && (
+          {isTranscriptActive && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

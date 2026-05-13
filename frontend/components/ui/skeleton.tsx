@@ -2,13 +2,15 @@ import { cn } from "@/lib/utils/cn";
 
 interface SkeletonProps {
   className?: string;
+  style?: React.CSSProperties;
 }
 
 /** Reusable skeleton loader with a smooth moving shimmer. */
-export function Skeleton({ className }: SkeletonProps) {
+export function Skeleton({ className, style }: SkeletonProps) {
   return (
     <div
       className={cn("skeleton rounded-md", className)}
+      style={style}
       aria-hidden="true"
     />
   );

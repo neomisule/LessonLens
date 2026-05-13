@@ -23,7 +23,7 @@ interface LectureSidebarProps {
 export function LectureSidebar({ subjectId }: LectureSidebarProps) {
   const { data, isLoading } = useLectures(subjectId);
   const { activeLectureId, setActiveLecture } = useAppStore();
-  const lectures = data?.items ?? [];
+  const lectures = data ?? [];
 
   return (
     <div className="flex flex-col gap-2">

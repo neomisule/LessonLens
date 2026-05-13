@@ -58,23 +58,28 @@ def fetch_captions_sync(video_id: str) -> list[RawSegment] | None:
         return None
 
     try:
-        # Prefer manual captions, fall back to auto-generated
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        try:
-            transcript = transcript_list.find_manually_created_transcript(["en", "en-US", "en-GB"])
-        except Exception:
-            transcript = transcript_list.find_generated_transcript(["en", "en-US", "en-GB"])
+        # youtube-transcript-api v1.0+ uses .fetch(video_id) directly
+        # v0.x used .list_transcripts(video_id).find_...().fetch()
+        if hasattr(YouTubeTranscriptApi, "list_transcripts"):
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            try:
+                transcript = transcript_list.find_manually_created_transcript(["en", "en-US", "en-GB"])
+            except Exception:
+                transcript = transcript_list.find_generated_transcript(["en", "en-US", "en-GB"])
+            raw = transcript.fetch()
+        else:
+            # v1.0+ API
+            raw = YouTubeTranscriptApi.get_transcript(video_id, languages=["en", "en-US", "en-GB"])
 
-        raw = transcript.fetch()
         return [
             RawSegment(
-                text=entry["text"],
-                start=float(entry["start"]),
-                duration=float(entry["duration"]),
-                confidence=0.85,  # YouTube captions don't expose per-segment confidence
+                text=entry.get("text", entry.text) if hasattr(entry, "text") else entry["text"],
+                start=float(entry.get("start", 0) if isinstance(entry, dict) else entry.start),
+                duration=float(entry.get("duration", 0) if isinstance(entry, dict) else entry.duration),
+                confidence=0.85,
             )
             for entry in raw
-            if entry.get("text", "").strip()
+            if (entry.get("text", "").strip() if isinstance(entry, dict) else getattr(entry, "text", "").strip())
         ]
 
     except _TRANSCRIPT_ERRORS as e:

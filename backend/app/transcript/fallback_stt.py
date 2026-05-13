@@ -64,6 +64,8 @@ async def download_audio(youtube_url: str, output_dir: str) -> str:
         # NO postprocessors — skip ffmpeg entirely, saves 30-90s per video
         "quiet": True,
         "no_warnings": True,
+        # Help bypass bot detection on datacenter IPs
+        "extractor_args": {"youtube": {"player_client": ["web"]}},
     }
 
     # Run yt-dlp in a thread so we don't block the event loop
@@ -104,14 +106,23 @@ async def transcribe_with_groq(audio_path: str, api_key: str) -> list[RawSegment
 
     segments: list[RawSegment] = []
     for seg in (getattr(response, "segments", None) or []):
-        duration = seg.end - seg.start
-        if duration <= 0:
+        # Groq may return dicts or objects depending on SDK version
+        if isinstance(seg, dict):
+            start = seg.get("start", 0.0)
+            end = seg.get("end", 0.0)
+            text = seg.get("text", "").strip()
+        else:
+            start = seg.start
+            end = seg.end
+            text = seg.text.strip()
+        duration = end - start
+        if duration <= 0 or not text:
             continue
         segments.append(RawSegment(
-            text=seg.text.strip(),
-            start=seg.start,
+            text=text,
+            start=start,
             duration=duration,
-            confidence=0.92,  # Groq doesn't expose no_speech_prob; assume high quality
+            confidence=0.92,
         ))
     return segments
 

@@ -22,7 +22,7 @@ WORKDIR /app
 
 # Runtime libs only (no build tools)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq5 curl \
+    && apt-get install -y --no-install-recommends libpq5 curl ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root user for security
